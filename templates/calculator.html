@@ -139,13 +139,17 @@
         </div>
         
         <div class="content">
-            
-            <!-- Tabs Header + Profile -->
-            <div class="panel full-width">
-                <div class="tabs-bar">
-                    <div class="tabs">
-                        <button class="tab-btn" data-tab="realTab" onclick="switchTab('realTab')">Curve over ℝ</button>
-                        <button class="tab-btn active" data-tab="fpTab" onclick="switchTab('fpTab')">Curve over Fp</button>
+
+            <!-- Curve Type Selector -->
+            <div style="text-align: center; margin: 20px 0;">
+                <div class="curve-selector-dropdown">
+                    <button class="curve-selector-btn" id="curveSelectorBtn">
+                        <span>Curve type</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="curve-dropdown-menu">
+                        <div class="curve-dropdown-item active" onclick="selectCurveType('fpTab', 'Curve over Fp')">Curve over Fp</div>
+                        <div class="curve-dropdown-item" onclick="selectCurveType('realTab', 'Curve over ℝ')">Curve over ℝ</div>
                     </div>
                 </div>
             </div>
@@ -209,13 +213,6 @@
 
             <!-- Real Curve (ℝ) Tab -->
             <div id="realTab" class="tab-pane">
-                <div class="panel full-width">
-                    <div class="subtabs">
-                        <button class="subtab-btn active" data-subtab="realInitPane" onclick="switchSubtab('real','realInitPane')">Initialization</button>
-                        <button class="subtab-btn" data-subtab="realAddPane" onclick="switchSubtab('real','realAddPane')">Point Addition</button>
-                        <button class="subtab-btn" data-subtab="realMulPane" onclick="switchSubtab('real','realMulPane')">Scalar Multiplication</button>
-                    </div>
-                </div>
 
                 <div id="realInitPane" class="subtab-pane active">
                     <div class="panel">
@@ -232,21 +229,13 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <div class="inline-inputs">
-                                <div>
-                                    <label for="realRangeMin">Range (x,y)</label>
-                                    <div class="range-inline" aria-label="Real curve axis range">
-                                        <span class="token">x,y ∈ [</span>
-                                        <input class="range-input" type="number" step="any" id="realRangeMin" value="-10" placeholder="min">
-                                        <span class="token">,</span>
-                                        <input class="range-input" type="number" step="any" id="realRangeMax" value="10" placeholder="max">
-                                        <span class="token">]</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         <button onclick="initRealCurve()">Initialize Curve</button>
+
+                        <div style="margin-top: 20px;">
+                            <h3 style="color: #888; margin-bottom: 10px;">Operations</h3>
+                            <button onclick="switchSubtab('real','realAddPane')" style="margin-bottom: 10px; width: 100%;">Point Addition</button>
+                            <button onclick="switchSubtab('real','realMulPane')" style="width: 100%;">Scalar Multiplication</button>
+                        </div>
                     </div>
                     <div class="panel">
                         <h2>Visualization</h2>
@@ -260,6 +249,7 @@
 
                 <div id="realAddPane" class="subtab-pane">
                     <div class="panel">
+                        <button onclick="switchSubtab('real','realInitPane')" style="margin-bottom: 15px;">← Back to Initialization</button>
                         <h2>Point Addition (ℝ)</h2>
                         <p style="margin-bottom: 15px; color: #888;">Geometric chord/tangent visualization</p>
                         <div class="form-group">
@@ -318,6 +308,7 @@
 
                 <div id="realMulPane" class="subtab-pane">
                     <div class="panel">
+                        <button onclick="switchSubtab('real','realInitPane')" style="margin-bottom: 15px;">← Back to Initialization</button>
                         <h2>Scalar Multiplication (ℝ)</h2>
                         <p style="margin-bottom: 15px; color: #888;">Follow k × P along the curve</p>
                         <div class="form-group">
@@ -360,13 +351,6 @@
 
             <!-- Curve over Fp Tab -->
             <div id="fpTab" class="tab-pane active">
-                <div class="panel full-width">
-                    <div class="subtabs" style="margin-top:10px;">
-                        <button class="subtab-btn active" data-subtab="fpInitPane" onclick="switchSubtab('fp','fpInitPane')">Initialization</button>
-                        <button class="subtab-btn" data-subtab="fpAddPane" onclick="switchSubtab('fp','fpAddPane')">Point Addition</button>
-                        <button class="subtab-btn" data-subtab="fpMulPane" onclick="switchSubtab('fp','fpMulPane')">Scalar Multiplication</button>
-                    </div>
-                </div>
 
                 <div id="fpInitPane" class="subtab-pane active">
                     <div class="panel">
@@ -406,6 +390,12 @@
                             </div>
                         </div>
                         <button onclick="findAllPoints()">Find All Points on Curve</button>
+
+                        <div style="margin-top: 20px;">
+                            <h3 style="color: #888; margin-bottom: 10px;">Operations</h3>
+                            <button onclick="switchSubtab('fp','fpAddPane')" style="margin-bottom: 10px; width: 100%;">Point Addition</button>
+                            <button onclick="switchSubtab('fp','fpMulPane')" style="width: 100%;">Scalar Multiplication</button>
+                        </div>
                     </div>
                     <div class="panel">
                         <h2>Points</h2>
@@ -416,6 +406,7 @@
 
                 <div id="fpAddPane" class="subtab-pane">
                     <div class="panel">
+                        <button onclick="switchSubtab('fp','fpInitPane')" style="margin-bottom: 15px;">← Back to Initialization</button>
                         <h2>Point Addition</h2>
                         <p style="margin-bottom: 15px; color: #888;">Add two points: P + Q = R</p>
                         <div class="form-group">
@@ -447,6 +438,7 @@
 
                 <div id="fpMulPane" class="subtab-pane">
                     <div class="panel">
+                        <button onclick="switchSubtab('fp','fpInitPane')" style="margin-bottom: 15px;">← Back to Initialization</button>
                         <h2>Scalar Multiplication</h2>
                         <p style="margin-bottom: 15px; color: #888;">Multiply a point by a scalar: k × P</p>
                         <div class="form-group">

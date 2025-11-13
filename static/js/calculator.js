@@ -9,6 +9,57 @@
                 } catch(_) {}
             })();
 
+        // =================== ANIMATION EASING FUNCTIONS =================== //
+
+        const Easing = {
+            // Smooth ease in-out (cubic)
+            easeInOutCubic: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+
+            // Smooth ease out (cubic)
+            easeOutCubic: (t) => 1 - Math.pow(1 - t, 3),
+
+            // Smooth ease in (cubic)
+            easeInCubic: (t) => t * t * t,
+
+            // Elastic bounce effect
+            easeOutElastic: (t) => {
+                const c4 = (2 * Math.PI) / 3;
+                return t === 0 ? 0 : t === 1 ? 1 :
+                    Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+            },
+
+            // Bounce effect
+            easeOutBounce: (t) => {
+                const n1 = 7.5625;
+                const d1 = 2.75;
+                if (t < 1 / d1) {
+                    return n1 * t * t;
+                } else if (t < 2 / d1) {
+                    return n1 * (t -= 1.5 / d1) * t + 0.75;
+                } else if (t < 2.5 / d1) {
+                    return n1 * (t -= 2.25 / d1) * t + 0.9375;
+                } else {
+                    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+                }
+            },
+
+            // Back easing (overshoot)
+            easeOutBack: (t) => {
+                const c1 = 1.70158;
+                const c3 = c1 + 1;
+                return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+            },
+
+            // Smooth sine easing
+            easeInOutSine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
+
+            // Exponential easing
+            easeOutExpo: (t) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
+
+            // Circular easing
+            easeOutCirc: (t) => Math.sqrt(1 - Math.pow(t - 1, 2))
+        };
+
         // =================== DARK MODE THEME TOGGLE =================== //
 
         // Initialize theme from localStorage or system preference
@@ -626,22 +677,28 @@
         }
 
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-            
-            document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
             document.getElementById(tabId).classList.add('active');
+
             // Defer redraw so canvases have non-zero size once visible
             _deferRedraw(() => { redrawAllCurves(); redrawRealCanvases(); });
+        }
+
+        function selectCurveType(tabId, label) {
+            // Update active state in dropdown
+            document.querySelectorAll('.curve-dropdown-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Switch to the selected tab
+            switchTab(tabId);
         }
 
         function switchSubtab(group, paneId){
             const container = (group === 'real') ? document.getElementById('realTab') : document.getElementById('fpTab');
             if (!container) return;
-            container.querySelectorAll('.subtab-btn').forEach(btn => btn.classList.remove('active'));
             container.querySelectorAll('.subtab-pane').forEach(p => p.classList.remove('active'));
-            const btn = container.querySelector(`[data-subtab="${paneId}"]`);
-            if (btn) btn.classList.add('active');
             const pane = document.getElementById(paneId);
             if (pane) pane.classList.add('active');
             if (group === 'real') { _deferRedraw(() => redrawRealCanvases()); } else { _deferRedraw(() => redrawAllCurves()); }
@@ -791,7 +848,7 @@
                         const { ctx, cssWidth, cssHeight } = canvasData;
                         clearCanvas(ctx, cssWidth, cssHeight);
                         drawAxesGrid(ctx, mulCanvas);
-                        drawCurvePoints(ctx, mulCanvas, '#8a8a8a', document.getElementById('multiplicationShowLabels')?.checked);
+                        drawCurvePoints(ctx, mulCanvas, '#8a8a8a', false);
                         if (selectedMultiplicationIndex !== null && currentPoints[selectedMultiplicationIndex]) {
                             drawSelectedHighlight(ctx, mulCanvas, currentPoints[selectedMultiplicationIndex]);
                         }
@@ -827,11 +884,11 @@
 
         function populateSelectors() {
             const selectors = ['point1Select', 'point2Select', 'scalarPointSelect'];
-            
+
             selectors.forEach(id => {
                 const select = document.getElementById(id);
                 select.innerHTML = '<option value="">Select a point</option>';
-                
+
                 currentPoints.forEach((point, index) => {
                     const option = document.createElement('option');
                     option.value = index;
@@ -1154,11 +1211,12 @@
             _fpInitAnim.active = true;
             const start = performance.now();
             const totalPoints = currentPoints.length;
-            const duration = Math.min(2500, totalPoints * 40); // 40ms per point, max 2.5s
+            const duration = Math.min(3000, totalPoints * 50); // 50ms per point, max 3s
 
             const step = (now)=>{
                 const elapsed = now - start;
-                const progress = Math.min(1, elapsed / duration);
+                const rawProgress = Math.min(1, elapsed / duration);
+                const progress = Easing.easeOutCubic(rawProgress); // Smooth easing
                 const pointsToShow = Math.ceil(progress * totalPoints);
 
                 // Draw on both visible canvases
@@ -1169,7 +1227,7 @@
                         const { ctx, cssWidth, cssHeight } = canvasData;
                         clearCanvas(ctx, cssWidth, cssHeight);
                         drawAxesGrid(ctx, addCanvas);
-                        drawPartialCurvePoints(ctx, addCanvas, '#8a8a8a', false, pointsToShow);
+                        drawPartialCurvePoints(ctx, addCanvas, '#8a8a8a', false, pointsToShow, rawProgress);
                     }
                 }
 
@@ -1180,7 +1238,7 @@
                         const { ctx, cssWidth, cssHeight } = canvasData;
                         clearCanvas(ctx, cssWidth, cssHeight);
                         drawAxesGrid(ctx, mulCanvas);
-                        drawPartialCurvePoints(ctx, mulCanvas, '#8a8a8a', false, pointsToShow);
+                        drawPartialCurvePoints(ctx, mulCanvas, '#8a8a8a', false, pointsToShow, rawProgress);
                     }
                 }
 
@@ -1195,8 +1253,8 @@
             _fpInitAnim.raf = requestAnimationFrame(step);
         }
 
-        // Helper to draw only first N points
-        function drawPartialCurvePoints(ctx, canvas, color, showLabels, count) {
+        // Helper to draw only first N points with smooth animations
+        function drawPartialCurvePoints(ctx, canvas, color, showLabels, count, rawProgress = 1) {
             const padding = 50;
             const cssWidth = (canvas.clientWidth || canvas.width);
             const cssHeight = (canvas.clientHeight || canvas.height);
@@ -1210,17 +1268,39 @@
                 const px = padding + (point.x / maxVal) * width;
                 const py = cssHeight - padding - (point.y / maxVal) * height;
 
-                // Calculate fade-in effect for last few points
-                const fadeStart = Math.max(0, count - 5);
-                const alpha = index < fadeStart ? 1 : 0.3 + 0.7 * ((index - fadeStart) / 5);
+                // Calculate individual point animation timing
+                const pointProgress = Math.max(0, Math.min(1, (count - index) / 8));
+                const scale = Easing.easeOutBack(pointProgress);
 
+                // Calculate fade-in and glow effect for recent points
+                const fadeStart = Math.max(0, count - 10);
+                const isRecent = index >= fadeStart;
+                const recentProgress = isRecent ? (index - fadeStart) / 10 : 1;
+                const alpha = isRecent ? Easing.easeOutCubic(recentProgress) : 1;
+
+                // Draw glow for recent points
+                if (isRecent && alpha < 1) {
+                    const glowSize = (1 - alpha) * 8;
+                    ctx.globalAlpha = (1 - alpha) * 0.3;
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 4 + glowSize, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+
+                // Draw main point with scale animation
                 ctx.globalAlpha = alpha;
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.scale(scale, scale);
                 ctx.fillStyle = color;
                 ctx.beginPath();
-                ctx.arc(px, py, 4, 0, 2 * Math.PI);
+                ctx.arc(0, 0, 4, 0, 2 * Math.PI);
                 ctx.fill();
+                ctx.restore();
 
-                if (showLabels) {
+                if (showLabels && alpha > 0.5) {
+                    ctx.globalAlpha = alpha;
                     ctx.font = '9px monospace';
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
@@ -1232,12 +1312,12 @@
         }
 
         // Enhanced animation for Fp addition with lines
-        let _fpAddAnim = { active:false, raf:null, started:0, duration:2000 };
+        let _fpAddAnim = { active:false, raf:null, started:0, duration:2500 };
         function startFpAdditionAnimation(P, Q, R){
             const canvas = document.getElementById('additionCanvas');
             if (!canvas) return;
             if (_fpAddAnim.raf) cancelAnimationFrame(_fpAddAnim.raf);
-            _fpAddAnim = { active:true, raf:null, started: performance.now(), duration:2000 };
+            _fpAddAnim = { active:true, raf:null, started: performance.now(), duration:2500 };
             const map = (px, py) => {
                 const padding = 50;
                 const cssWidth = (canvas.clientWidth || canvas.width);
@@ -1255,22 +1335,36 @@
                 drawAxesGrid(ctx, canvas);
                 drawCurvePoints(ctx, canvas, '#8a8a8a', false);
 
-                const t = Math.min(1, (now - _fpAddAnim.started) / _fpAddAnim.duration);
+                const rawT = Math.min(1, (now - _fpAddAnim.started) / _fpAddAnim.duration);
 
-                // Phase 1: Show P and Q (0 to 0.3)
-                const phase1 = Math.min(1, t / 0.3);
+                // Phase 1: Show P and Q (0 to 0.25) with elastic bounce
+                const phase1Raw = Math.min(1, rawT / 0.25);
+                const phase1 = Easing.easeOutElastic(phase1Raw);
 
-                // Phase 2: Draw line from P to Q (0.3 to 0.6)
-                const phase2 = Math.max(0, Math.min(1, (t - 0.3) / 0.3));
+                // Phase 2: Draw line from P to Q (0.25 to 0.55) with smooth easing
+                const phase2Raw = Math.max(0, Math.min(1, (rawT - 0.25) / 0.3));
+                const phase2 = Easing.easeInOutCubic(phase2Raw);
 
-                // Phase 3: Show R (0.6 to 1.0)
-                const phase3 = Math.max(0, Math.min(1, (t - 0.6) / 0.4));
+                // Phase 3: Show R (0.55 to 1.0) with back easing (overshoot)
+                const phase3Raw = Math.max(0, Math.min(1, (rawT - 0.55) / 0.45));
+                const phase3 = Easing.easeOutBack(phase3Raw);
 
-                // Draw P and Q
-                if (P.x !== null && phase1 > 0) {
-                    const scale = 0.5 + 0.5 * phase1;
-                    ctx.save();
+                // Draw P and Q with glow
+                if (P.x !== null && phase1Raw > 0) {
                     const p = map(P.x, P.y);
+
+                    // Glow effect
+                    if (phase1Raw < 1) {
+                        ctx.globalAlpha = (1 - phase1Raw) * 0.4;
+                        ctx.fillStyle = '#2563eb';
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 12 + (1 - phase1Raw) * 8, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+
+                    const scale = Math.min(1.2, phase1);
+                    ctx.save();
                     ctx.translate(p.x, p.y);
                     ctx.scale(scale, scale);
                     ctx.translate(-p.x, -p.y);
@@ -1278,10 +1372,21 @@
                     ctx.restore();
                 }
 
-                if (Q.x !== null && phase1 > 0) {
-                    const scale = 0.5 + 0.5 * phase1;
-                    ctx.save();
+                if (Q.x !== null && phase1Raw > 0) {
                     const q = map(Q.x, Q.y);
+
+                    // Glow effect
+                    if (phase1Raw < 1) {
+                        ctx.globalAlpha = (1 - phase1Raw) * 0.4;
+                        ctx.fillStyle = '#f97316';
+                        ctx.beginPath();
+                        ctx.arc(q.x, q.y, 12 + (1 - phase1Raw) * 8, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+
+                    const scale = Math.min(1.2, phase1);
+                    ctx.save();
                     ctx.translate(q.x, q.y);
                     ctx.scale(scale, scale);
                     ctx.translate(-q.x, -q.y);
@@ -1289,49 +1394,86 @@
                     ctx.restore();
                 }
 
-                // Draw connecting line
-                if (P.x !== null && Q.x !== null && phase2 > 0) {
+                // Draw connecting line with animated dash
+                if (P.x !== null && Q.x !== null && phase2Raw > 0) {
                     const p = map(P.x, P.y);
                     const q = map(Q.x, Q.y);
                     const lineProgress = phase2;
                     const currentX = p.x + (q.x - p.x) * lineProgress;
                     const currentY = p.y + (q.y - p.y) * lineProgress;
 
-                    ctx.strokeStyle = '#93c5fd';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([5, 5]);
+                    // Animated dashed line
+                    const dashOffset = (now / 50) % 10;
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([8, 4]);
+                    ctx.lineDashOffset = -dashOffset;
+                    ctx.globalAlpha = 0.8;
                     ctx.beginPath();
                     ctx.moveTo(p.x, p.y);
                     ctx.lineTo(currentX, currentY);
                     ctx.stroke();
                     ctx.setLineDash([]);
+                    ctx.globalAlpha = 1;
+
+                    // Draw animated point at line end
+                    if (phase2Raw > 0.1) {
+                        const pulseSize = 4 + Math.sin(now / 100) * 2;
+                        ctx.fillStyle = '#60a5fa';
+                        ctx.beginPath();
+                        ctx.arc(currentX, currentY, pulseSize, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
                 }
 
-                // Draw R with entrance animation
-                if (R.x !== null && phase3 > 0) {
-                    const scale = 0.5 + 0.5 * phase3;
-                    ctx.save();
+                // Draw R with entrance animation and celebration effects
+                if (R.x !== null && phase3Raw > 0) {
                     const r = map(R.x, R.y);
+
+                    // Multiple glow rings
+                    if (phase3Raw < 1) {
+                        for (let i = 0; i < 3; i++) {
+                            const ringDelay = i * 0.15;
+                            const ringProgress = Math.max(0, Math.min(1, (phase3Raw - ringDelay) / (1 - ringDelay)));
+                            if (ringProgress > 0) {
+                                ctx.globalAlpha = (1 - ringProgress) * 0.3;
+                                ctx.fillStyle = '#10b981';
+                                ctx.beginPath();
+                                ctx.arc(r.x, r.y, 10 + ringProgress * 25, 0, 2 * Math.PI);
+                                ctx.fill();
+                            }
+                        }
+                        ctx.globalAlpha = 1;
+                    }
+
+                    const scale = Math.min(1.2, phase3);
+                    ctx.save();
                     ctx.translate(r.x, r.y);
                     ctx.scale(scale, scale);
                     ctx.translate(-r.x, -r.y);
                     drawPoint(ctx, canvas, R.x, R.y, '#166534', 7, 'R');
                     ctx.restore();
 
-                    // Pulse effect on R
-                    if (phase3 > 0.5) {
-                        const pulseT = (phase3 - 0.5) / 0.5;
-                        ctx.strokeStyle = '#166534';
-                        ctx.lineWidth = 2;
-                        ctx.globalAlpha = 1 - pulseT * 0.7;
-                        ctx.beginPath();
-                        ctx.arc(r.x, r.y, 10 + 15 * pulseT, 0, 2 * Math.PI);
-                        ctx.stroke();
+                    // Rotating sparkle effect
+                    if (phase3Raw > 0.3 && phase3Raw < 0.9) {
+                        const sparkleT = (phase3Raw - 0.3) / 0.6;
+                        const numSparkles = 6;
+                        for (let i = 0; i < numSparkles; i++) {
+                            const angle = (i / numSparkles) * Math.PI * 2 + sparkleT * Math.PI * 2;
+                            const distance = 15 + sparkleT * 10;
+                            const sx = r.x + Math.cos(angle) * distance;
+                            const sy = r.y + Math.sin(angle) * distance;
+                            ctx.globalAlpha = (1 - sparkleT) * 0.8;
+                            ctx.fillStyle = '#fbbf24';
+                            ctx.beginPath();
+                            ctx.arc(sx, sy, 2, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
                         ctx.globalAlpha = 1;
                     }
                 }
 
-                if (t < 1){ _fpAddAnim.raf = requestAnimationFrame(tick); }
+                if (rawT < 1){ _fpAddAnim.raf = requestAnimationFrame(tick); }
                 else { _fpAddAnim.active = false; _fpAddAnim.raf = null; visualizeAddition(P, Q, R); }
             };
             _fpAddAnim.raf = requestAnimationFrame(tick);
@@ -1407,7 +1549,7 @@
             }
         }
 
-        function renderFpScalarPartial(count) {
+        function renderFpScalarPartial(count, animTime) {
             const canvas = document.getElementById('multiplicationCanvas');
             if (!canvas) return;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
@@ -1424,11 +1566,9 @@
 
             const n = Math.min(count, fpScalarPoints.length);
 
-            // Draw connecting lines between consecutive points
-            ctx.strokeStyle = '#93c5fd';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([3, 3]);
-            ctx.globalAlpha = 0.5;
+            // Draw connecting lines with animated trail effect
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2;
             for (let i = 1; i < n; i++) {
                 const prev = fpScalarPoints[i - 1];
                 const curr = fpScalarPoints[i];
@@ -1439,6 +1579,11 @@
                 const x2 = padding + (curr.x / maxVal) * width;
                 const y2 = cH - padding - (curr.y / maxVal) * height;
 
+                // Fade older lines
+                const isRecent = i >= n - 3;
+                const lineAlpha = isRecent ? 0.7 : 0.3;
+                ctx.globalAlpha = lineAlpha;
+                ctx.setLineDash([5, 3]);
                 ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
@@ -1447,33 +1592,68 @@
             ctx.setLineDash([]);
             ctx.globalAlpha = 1;
 
-            // Draw points with fade-in effect
+            // Draw points with enhanced animations
             for (let i = 0; i < n; i++){
                 const pt = fpScalarPoints[i];
                 if (!pt || pt.x === null) continue;
 
-                // Fade-in effect for the last point
-                if (i === n - 1) {
-                    const fadeProgress = (count % 1);
-                    ctx.globalAlpha = 0.3 + 0.7 * fadeProgress;
+                const x = padding + (pt.x / maxVal) * width;
+                const y = cH - padding - (pt.y / maxVal) * height;
+
+                // Calculate individual point animation state
+                const isNewest = i === Math.floor(count) - 1;
+                const fadeProgress = i === Math.floor(count) - 1 ? (count % 1) : 1;
+                const easedFade = Easing.easeOutBack(fadeProgress);
+
+                // Draw glow for newer points
+                if (i >= n - 4) {
+                    const glowProgress = (i - (n - 4)) / 4;
+                    ctx.globalAlpha = 0.3 * (1 - fadeProgress);
+                    ctx.fillStyle = '#10b981';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 12 + glowProgress * 4, 0, 2 * Math.PI);
+                    ctx.fill();
                 }
 
+                // Draw point with scale animation
+                ctx.globalAlpha = Easing.easeOutCubic(fadeProgress);
+                const scale = isNewest ? easedFade : 1;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.scale(scale, scale);
+                ctx.translate(-x, -y);
                 const lbl = `${i+1}P`;
                 drawPoint(ctx, canvas, pt.x, pt.y, '#166534', 6, lbl);
-
+                ctx.restore();
                 ctx.globalAlpha = 1;
 
-                // Pulse effect on the newest point
-                if (i === n - 1 && count % 1 > 0.5) {
-                    const pulseT = (count % 1 - 0.5) / 0.5;
-                    const x = padding + (pt.x / maxVal) * width;
-                    const y = cH - padding - (pt.y / maxVal) * height;
-                    ctx.strokeStyle = '#166534';
-                    ctx.lineWidth = 2;
-                    ctx.globalAlpha = 1 - pulseT * 0.6;
+                // Enhanced pulse effect on newest point
+                if (isNewest && fadeProgress > 0.3) {
+                    const pulsePhase = ((animTime || 0) / 100) % (Math.PI * 2);
+                    const pulseSize = Math.sin(pulsePhase) * 3 + 3;
+                    ctx.globalAlpha = 0.4 + Math.sin(pulsePhase) * 0.2;
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
                     ctx.beginPath();
-                    ctx.arc(x, y, 10 + 8 * pulseT, 0, 2 * Math.PI);
+                    ctx.arc(x, y, 10 + pulseSize, 0, 2 * Math.PI);
                     ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Trailing particle effect for newest point
+                if (isNewest && fadeProgress > 0.5) {
+                    const numParticles = 6;
+                    for (let p = 0; p < numParticles; p++) {
+                        const angle = (p / numParticles) * Math.PI * 2 + (animTime || 0) / 200;
+                        const distance = 15 + fadeProgress * 5;
+                        const px = x + Math.cos(angle) * distance;
+                        const py = y + Math.sin(angle) * distance;
+                        ctx.globalAlpha = (1 - fadeProgress) * 0.5;
+                        ctx.fillStyle = '#fbbf24';
+                        ctx.beginPath();
+                        ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
                     ctx.globalAlpha = 1;
                 }
             }
@@ -1484,12 +1664,14 @@
             if (_fpMulAnim.raf) cancelAnimationFrame(_fpMulAnim.raf);
             _fpMulAnim.active = true;
             const start = performance.now();
-            const per = 350; // ms per point (slower for better visibility)
+            const per = 600; // ms per point (slower, smoother animation)
             const tick = (now)=>{
                 const elapsed = now - start;
-                // Use fractional count for smoother animation
-                const shownFloat = Math.min(fpScalarPoints.length, elapsed / per + 1);
-                renderFpScalarPartial(shownFloat);
+                const rawProgress = Math.min(fpScalarPoints.length, elapsed / per + 1);
+                // Use easing for the overall timing
+                const easedProgress = 1 + (rawProgress - 1) * Easing.easeOutCubic(Math.min(1, (rawProgress - 1) / (fpScalarPoints.length - 1)));
+                const shownFloat = Math.min(fpScalarPoints.length, easedProgress);
+                renderFpScalarPartial(shownFloat, now);
                 if (shownFloat < fpScalarPoints.length) {
                     _fpMulAnim.raf = requestAnimationFrame(tick);
                 } else {
@@ -1909,18 +2091,8 @@
                     return;
                 }
                 realCurve = {a, b};
-                // Read desired symmetric range from inputs: x,y ∈ [min, max]
-                const rmin = parseFloat(document.getElementById('realRangeMin').value);
-                const rmax = parseFloat(document.getElementById('realRangeMax').value);
-                if ([rmin,rmax].some(v => Number.isNaN(v))) {
-                    alert('Please enter valid numeric ranges');
-                    return;
-                }
-                if (!(rmin < rmax)){
-                    alert('Range must satisfy min < max');
-                    return;
-                }
-                realRange = { xMin: rmin, xMax: rmax, yMin: rmin, yMax: rmax };
+                // Use default range
+                realRange = { xMin: -10, xMax: 10, yMin: -10, yMax: 10 };
                 // reset selections
                 realP = null; realQ = null; realR = null;
                 redrawRealCanvases();
@@ -2221,11 +2393,12 @@
             if (_realCurveAnim.raf) cancelAnimationFrame(_realCurveAnim.raf);
             _realCurveAnim = { active:true, raf:null, t:0 };
             const start = performance.now();
-            const duration = 900;
+            const duration = 1800;
             const step = (now)=>{
-                _realCurveAnim.t = Math.min(1, (now - start)/duration);
+                const rawT = Math.min(1, (now - start)/duration);
+                _realCurveAnim.t = Easing.easeOutCubic(rawT); // Smooth easing
                 drawRealCurveOnly();
-                if (_realCurveAnim.t < 1) _realCurveAnim.raf = requestAnimationFrame(step);
+                if (rawT < 1) _realCurveAnim.raf = requestAnimationFrame(step);
                 else { _realCurveAnim.active=false; _realCurveAnim.raf=null; }
             };
             _realCurveAnim.raf = requestAnimationFrame(step);
@@ -2424,7 +2597,7 @@
             if (_realAddAnim.raf) cancelAnimationFrame(_realAddAnim.raf);
             _realAddAnim = { active:true, raf:null };
             const start = performance.now();
-            const phaseDur = { line: 800, hold: 250, reflect: 700, reveal: 250 };
+            const phaseDur = { line: 1000, hold: 300, reflect: 900, reveal: 400 };
             const x1 = realRange.xMin, x2 = realRange.xMax;
             let m = null, vertical=false;
             if (Math.abs(realP.x - realQ.x) < 1e-12 && Math.abs(realP.y - realQ.y) < 1e-12) {
@@ -2435,47 +2608,152 @@
 
             const tick = (now)=>{
                 const elapsed = now - start;
-                const t1 = Math.min(1, elapsed / phaseDur.line);
-                const t2 = Math.min(1, Math.max(0, (elapsed - phaseDur.line - phaseDur.hold) / phaseDur.reflect));
-                const t3 = Math.min(1, Math.max(0, (elapsed - phaseDur.line - phaseDur.hold - phaseDur.reflect) / phaseDur.reveal));
+                const t1Raw = Math.min(1, elapsed / phaseDur.line);
+                const t1 = Easing.easeInOutCubic(t1Raw);
+                const t2Raw = Math.min(1, Math.max(0, (elapsed - phaseDur.line - phaseDur.hold) / phaseDur.reflect));
+                const t2 = Easing.easeInOutCubic(t2Raw);
+                const t3Raw = Math.min(1, Math.max(0, (elapsed - phaseDur.line - phaseDur.hold - phaseDur.reflect) / phaseDur.reveal));
+                const t3 = Easing.easeOutBack(t3Raw);
 
                 const canvas = document.getElementById('realAdditionCanvas');
                 const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
                 clearCanvas(ctx, cssWidth, cssHeight);
                 drawRealAxesGrid(ctx, canvas);
                 drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
+
+                // Draw P and Q with pulsing glow
+                const pGlow = Math.sin(now / 200) * 0.15 + 0.15;
+                const qGlow = Math.sin(now / 200 + Math.PI) * 0.15 + 0.15;
+                const pPos = mapRealToCanvas(canvas, realP.x, realP.y);
+                const qPos = mapRealToCanvas(canvas, realQ.x, realQ.y);
+
+                ctx.globalAlpha = pGlow;
+                ctx.fillStyle = '#2563eb';
+                ctx.beginPath();
+                ctx.arc(pPos.px, pPos.py, 12, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                ctx.globalAlpha = qGlow;
+                ctx.fillStyle = '#f97316';
+                ctx.beginPath();
+                ctx.arc(qPos.px, qPos.py, 12, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
                 drawRealPoint(ctx, canvas, realP, '#2563eb', 'P', true);
                 drawRealPoint(ctx, canvas, realQ, '#f97316', 'Q', true);
 
-                // animate chord/tangent line
-                if (vertical){
-                    const x = realP.x;
-                    const yStart = realRange.yMin; const yEnd = realRange.yMax;
-                    const a = mapRealToCanvas(canvas, x, yStart);
-                    const b = mapRealToCanvas(canvas, x, yStart + t1*(yEnd - yStart));
-                    ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5;
-                    ctx.beginPath(); ctx.moveTo(a.px, a.py); ctx.lineTo(b.px, b.py); ctx.stroke();
-                } else {
-                    const xa = x1; const xb = x1 + t1*(x2 - x1);
-                    const pA = mapRealToCanvas(canvas, xa, yAt(xa));
-                    const pB = mapRealToCanvas(canvas, xb, yAt(xb));
-                    ctx.strokeStyle = '#999'; ctx.lineWidth = 1.5;
-                    ctx.beginPath(); ctx.moveTo(pA.px, pA.py); ctx.lineTo(pB.px, pB.py); ctx.stroke();
+                // Animate chord/tangent line with animated dash
+                if (t1Raw > 0) {
+                    const dashOffset = (now / 50) % 12;
+                    if (vertical){
+                        const x = realP.x;
+                        const yStart = realRange.yMin; const yEnd = realRange.yMax;
+                        const a = mapRealToCanvas(canvas, x, yStart);
+                        const b = mapRealToCanvas(canvas, x, yStart + t1*(yEnd - yStart));
+                        ctx.strokeStyle = '#60a5fa';
+                        ctx.lineWidth = 2.5;
+                        ctx.setLineDash([6, 4]);
+                        ctx.lineDashOffset = -dashOffset;
+                        ctx.beginPath();
+                        ctx.moveTo(a.px, a.py);
+                        ctx.lineTo(b.px, b.py);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    } else {
+                        const xa = x1; const xb = x1 + t1*(x2 - x1);
+                        const pA = mapRealToCanvas(canvas, xa, yAt(xa));
+                        const pB = mapRealToCanvas(canvas, xb, yAt(xb));
+                        ctx.strokeStyle = '#60a5fa';
+                        ctx.lineWidth = 2.5;
+                        ctx.setLineDash([6, 4]);
+                        ctx.lineDashOffset = -dashOffset;
+                        ctx.globalAlpha = 0.9;
+                        ctx.beginPath();
+                        ctx.moveTo(pA.px, pA.py);
+                        ctx.lineTo(pB.px, pB.py);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.globalAlpha = 1;
+                    }
                 }
 
+                // Animated -R appearance
                 if (minusR && elapsed > phaseDur.line){
-                    const alpha = 0.2 + 0.8 * Math.min(1, (elapsed - phaseDur.line)/200);
-                    ctx.globalAlpha = alpha; drawRealPoint(ctx, canvas, minusR, '#9ca3af', '-R', true); ctx.globalAlpha = 1;
+                    const alpha = Easing.easeOutCubic(Math.min(1, (elapsed - phaseDur.line)/300));
+                    ctx.globalAlpha = alpha;
+                    drawRealPoint(ctx, canvas, minusR, '#9ca3af', '-R', true);
+                    ctx.globalAlpha = 1;
+
+                    // Glow effect for -R
+                    if (alpha < 1) {
+                        const minusRPos = mapRealToCanvas(canvas, minusR.x, minusR.y);
+                        ctx.globalAlpha = (1 - alpha) * 0.4;
+                        ctx.fillStyle = '#9ca3af';
+                        ctx.beginPath();
+                        ctx.arc(minusRPos.px, minusRPos.py, 12 + (1 - alpha) * 8, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
                 }
+
+                // Animated reflection line
                 if (realR && elapsed > phaseDur.line + phaseDur.hold){
                     const up = mapRealToCanvas(canvas, realR.x, realR.y);
                     const dn = mapRealToCanvas(canvas, realR.x, -realR.y);
                     const midY = up.py + t2*(dn.py - up.py);
-                    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.setLineDash([4,4]);
-                    ctx.beginPath(); ctx.moveTo(up.px, up.py); ctx.lineTo(up.px, midY); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.strokeStyle = 'rgba(96, 165, 250, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5,5]);
+                    ctx.beginPath();
+                    ctx.moveTo(up.px, up.py);
+                    ctx.lineTo(up.px, midY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
                 }
+
+                // Animated R reveal with celebration effects
                 if (realR && elapsed > phaseDur.line + phaseDur.hold + phaseDur.reflect){
-                    ctx.globalAlpha = t3; drawRealPoint(ctx, canvas, realR, '#166534', 'R', true); ctx.globalAlpha = 1;
+                    const rPos = mapRealToCanvas(canvas, realR.x, realR.y);
+
+                    // Multiple expanding rings
+                    if (t3Raw < 1) {
+                        for (let i = 0; i < 3; i++) {
+                            const ringDelay = i * 0.2;
+                            const ringProgress = Math.max(0, Math.min(1, (t3Raw - ringDelay) / (1 - ringDelay)));
+                            if (ringProgress > 0) {
+                                ctx.globalAlpha = (1 - ringProgress) * 0.35;
+                                ctx.fillStyle = '#10b981';
+                                ctx.beginPath();
+                                ctx.arc(rPos.px, rPos.py, 8 + ringProgress * 20, 0, 2 * Math.PI);
+                                ctx.fill();
+                            }
+                        }
+                        ctx.globalAlpha = 1;
+                    }
+
+                    ctx.globalAlpha = Easing.easeOutCubic(t3Raw);
+                    drawRealPoint(ctx, canvas, realR, '#166534', 'R', true);
+                    ctx.globalAlpha = 1;
+
+                    // Sparkle effect
+                    if (t3Raw > 0.2 && t3Raw < 0.8) {
+                        const sparkleT = (t3Raw - 0.2) / 0.6;
+                        const numSparkles = 8;
+                        for (let i = 0; i < numSparkles; i++) {
+                            const angle = (i / numSparkles) * Math.PI * 2 + sparkleT * Math.PI;
+                            const distance = 12 + sparkleT * 8;
+                            const sx = rPos.px + Math.cos(angle) * distance;
+                            const sy = rPos.py + Math.sin(angle) * distance;
+                            ctx.globalAlpha = (1 - sparkleT) * 0.7;
+                            ctx.fillStyle = '#fbbf24';
+                            ctx.beginPath();
+                            ctx.arc(sx, sy, 2, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                        ctx.globalAlpha = 1;
+                    }
                 }
 
                 if (elapsed < (phaseDur.line + phaseDur.hold + phaseDur.reflect + phaseDur.reveal)){

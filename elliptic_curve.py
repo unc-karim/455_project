@@ -99,14 +99,14 @@ class EllipticCurve:
         left = (y**2) % self.p
         right = (x**3 + self.a * x + self.b) % self.p
         return left == right
-    
+
     def tonelli_shanks(self, n):
         """
         Find square roots of n modulo p using Tonelli-Shanks algorithm
-        
+
         Args:
             n: Number to find square root of (mod p)
-            
+
         Returns:
             list: All square roots (empty if none exist, 2 roots or 1 if n=0)
         """
