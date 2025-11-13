@@ -25,33 +25,79 @@
     <!-- Sliding History Panel -->
     <div id="historyPanel" class="history-panel">
         <div class="history-panel-header">
-            <h2>📜 History</h2>
-            <button class="history-close-btn" onclick="closeHistoryPanel()" aria-label="Close history panel">×</button>
+            <h2>⚙️ Menu</h2>
+            <button class="history-close-btn" onclick="closeHistoryPanel()" aria-label="Close menu panel">×</button>
         </div>
         <div class="history-panel-content">
-            <div class="history-panel-controls">
-                <button onclick="refreshUnifiedHistory()">🔄 Refresh</button>
-                <button onclick="exportUnifiedHistory()">💾 Export</button>
-                <button onclick="clearUnifiedHistory()">🗑️ Clear</button>
+
+            <!-- User Profile Section -->
+            <div class="menu-section">
+                <div class="menu-section-header">
+                    <div class="user-profile-card">
+                        <div class="user-avatar">👤</div>
+                        <div class="user-info">
+                            <div class="user-name" id="menuUserName">Guest</div>
+                            <div class="user-status" id="menuUserStatus">Not signed in</div>
+                        </div>
+                    </div>
+                    <button id="menuAuthBtn" class="btn-auth" onclick="openLoginModal()">Sign In</button>
+                </div>
             </div>
-            <div id="unifiedHistoryList" class="history-list"></div>
+
+            <!-- Quick Actions Section -->
+            <div class="menu-section">
+                <h3 class="menu-section-title">Quick Actions</h3>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="toggleTheme()" title="Toggle light/dark theme">
+                        <span class="menu-card-icon theme-icon">🌙</span>
+                        <span class="menu-card-label">Theme</span>
+                        <span class="menu-card-hint">Toggle mode</span>
+                    </button>
+                    <button class="menu-card" onclick="showKeyboardHelp()" title="View keyboard shortcuts">
+                        <span class="menu-card-icon">⌨️</span>
+                        <span class="menu-card-label">Shortcuts</span>
+                        <span class="menu-card-hint">View all</span>
+                    </button>
+                    <button class="menu-card" onclick="showFormulaReference()" title="Mathematical formulas">
+                        <span class="menu-card-icon">📐</span>
+                        <span class="menu-card-label">Formulas</span>
+                        <span class="menu-card-hint">Reference</span>
+                    </button>
+                    <button class="menu-card" onclick="exportUnifiedHistory()" title="Export history">
+                        <span class="menu-card-icon">💾</span>
+                        <span class="menu-card-label">Export</span>
+                        <span class="menu-card-hint">Save data</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div class="menu-section">
+                <div class="menu-section-title-row">
+                    <h3 class="menu-section-title">📜 History</h3>
+                    <div class="menu-section-actions">
+                        <button class="icon-btn" onclick="refreshUnifiedHistory()" title="Refresh history">
+                            <span>🔄</span>
+                        </button>
+                        <button class="icon-btn" onclick="clearUnifiedHistory()" title="Clear history">
+                            <span>🗑️</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="unifiedHistoryList" class="history-list"></div>
+            </div>
+
         </div>
     </div>
 
     <div class="container">
         <div class="header">
+            <button class="info-btn" onclick="toggleAboutModal()" title="About & Help" aria-label="About and help">
+                <span class="info-icon">ℹ️</span>
+            </button>
             <h1>Elliptic Curve</h1>
             <div class="header-buttons">
-                <button class="header-btn" onclick="showFormulaReference()" title="Formula reference (F)" aria-label="Show formula reference">
-                    📐
-                </button>
-                <button class="header-btn" onclick="showKeyboardHelp()" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">
-                    ⌨️
-                </button>
-                <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode" aria-label="Toggle theme">
-                    <span class="theme-icon">🌙</span>
-                </button>
-                <button class="history-toggle" onclick="toggleHistoryPanel()" title="History (Ctrl+H)" aria-label="Toggle history panel">
+                <button class="history-toggle" onclick="toggleHistoryPanel()" title="Menu" aria-label="Open menu panel">
                     <div class="hamburger-line"></div>
                     <div class="hamburger-line"></div>
                     <div class="hamburger-line"></div>
@@ -98,23 +144,18 @@
             <div class="panel full-width">
                 <div class="tabs-bar">
                     <div class="tabs">
-                        <button class="tab-btn" data-tab="aboutTab" onclick="switchTab('aboutTab')">About</button>
                         <button class="tab-btn" data-tab="realTab" onclick="switchTab('realTab')">Curve over ℝ</button>
                         <button class="tab-btn active" data-tab="fpTab" onclick="switchTab('fpTab')">Curve over Fp</button>
-                    </div>
-                    <div class="profile-area">
-                        <button id="profileBtn" class="profile-btn" onclick="toggleProfileMenu()" aria-haspopup="true" aria-expanded="false" title="Profile">👤</button>
-                        <div id="profileMenu" class="profile-menu" role="menu">
-                            <div class="header">Signed in as <span id="profileName">user</span></div>
-                            <button id="menuLogin" class="dropdown-item" style="display:none;" onclick="hideProfileMenu(); openLoginModal();">Login</button>
-                            <button id="menuLogout" class="dropdown-item" onclick="hideProfileMenu(); doLogout();">Logout</button>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- About Tab -->
-            <div id="aboutTab" class="tab-pane">
+            <!-- About Modal -->
+            <div id="aboutModal" class="about-modal">
+                <div class="about-modal-overlay" onclick="closeAboutModal()"></div>
+                <div class="about-modal-content">
+                    <button class="about-modal-close" onclick="closeAboutModal()" aria-label="Close about">×</button>
+                    <div class="about-modal-body">
                 <div class="panel full-width">
                     <h2>About</h2>
                     <p style="margin-bottom: 12px; color:#ccc;">
@@ -130,7 +171,7 @@
                         plus a special identity element <strong>O</strong> (the “point at infinity”), forms an abelian group under a well‑defined addition rule.
                     </p>
 
-                    <h3 style="color:#e6e6e6; margin-top:16px;">Key Concepts</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Key Concepts</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
                         <li><strong>Valid curve:</strong> The discriminant <code>Δ = 4a³ + 27b² (mod p)</code> must be non‑zero to avoid singularities.</li>
                         <li><strong>Point at infinity (O):</strong> Acts as the identity element: <code>P + O = P</code>.</li>
@@ -140,7 +181,7 @@
                         <li><strong>Scalar multiplication:</strong> Repeated addition, efficiently computed via the double‑and‑add method.</li>
                     </ul>
 
-                    <h3 style="color:#e6e6e6; margin-top:16px;">How to Use This App</h3>
+                    <h3 style="color:#000000; margin-top:16px;">How to Use This App</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
                         <li><strong>Initialization:</strong> Pick <code>a</code>, <code>b</code>, and a prime <code>p</code>, then click “Find All Points on Curve”. The list below shows every point (including <code>O</code>).</li>
                         <li><strong>Visualization:</strong> The canvases plot all points with axes from <code>0</code> to <code>p−1</code> on both x and y. Use the “Show point labels” toggle to annotate points.</li>
@@ -148,7 +189,7 @@
                         <li><strong>Scalar Multiplication:</strong> Choose a point <code>P</code> and scalar <code>k</code>. Step through each intermediate multiple with the controls and slider.</li>
                     </ul>
 
-                    <h3 style="color:#e6e6e6; margin-top:16px;">Tips and Notes</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Tips and Notes</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
                         <li>Choose moderate primes (for example, <code>p ≈ 50–200</code>) to keep the plots readable while still showing structure.</li>
                         <li>If <code>Δ = 0</code> for your parameters, pick a different <code>a</code> and <code>b</code> so the curve is non‑singular.</li>
@@ -156,11 +197,13 @@
                         <li>All points are plotted in a grid of integers; there are no fractional coordinates in this finite‑field setting.</li>
                     </ul>
 
-                    <h3 style="color:#e6e6e6; margin-top:16px;">Why Elliptic Curves?</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Why Elliptic Curves?</h3>
                     <p style="margin: 8px 0; color:#ccc;">
                         Elliptic‑curve groups enable compact, efficient public‑key operations such as key exchange and digital signatures.
                         Over finite fields, their algebraic structure provides strong security per bit of key size and underpins many modern protocols.
                     </p>
+                </div>
+                    </div>
                 </div>
             </div>
 
@@ -237,6 +280,7 @@
                                     </select>
                                 </div>
                             </div>
+                            <div class="point-status" id="realPoint1Status">Enter both coordinates</div>
                         </div>
                         <div class="form-group">
                             <div class="inline-inputs">
@@ -253,6 +297,7 @@
                                     <button onclick="addPointsReal()">Calculate P + Q</button>
                                 </div>
                             </div>
+                            <div class="point-status" id="realPoint2Status">Enter both coordinates</div>
                         </div>
                         <div id="realAdditionResult"></div>
                     </div>
@@ -263,6 +308,11 @@
                         <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
                             <input id="realAdditionShowLabels" type="checkbox" checked onchange="drawRealAdditionScene()"> Show point labels
                         </label>
+                        <div class="steps-toggle-row">
+                            <button id="realAdditionToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('realAddition')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -285,6 +335,7 @@
                                     <input type="number" step="any" id="realMulPY" placeholder="y">
                                 </div>
                             </div>
+                            <div class="point-status" id="realScalarPointStatus">Enter both coordinates</div>
                         </div>
                         <button onclick="scalarMultiplyReal()">Calculate k × P</button>
                         <div id="realScalarResult"></div>
@@ -296,6 +347,11 @@
                         <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
                             <input id="realMultiplicationShowLabels" type="checkbox" checked onchange="renderRealScalarAll()"> Show point labels
                         </label>
+                        <div class="steps-toggle-row">
+                            <button id="realScalarToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('realScalar')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
                         <div id="realAnimControls" class="anim-controls" style="display:none;"></div>
                     </div>
                 </div>
@@ -380,6 +436,11 @@
                         <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
                             <input id="additionShowLabels" type="checkbox" checked onchange="redrawAdditionCanvas()"> Show point labels
                         </label>
+                        <div class="steps-toggle-row">
+                            <button id="additionToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('addition')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
                         <div id="additionPointInfo" class="point-info" aria-live="polite"></div>
                     </div>
                 </div>
@@ -406,6 +467,11 @@
                         <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
                             <input id="multiplicationShowLabels" type="checkbox" checked onchange="renderFpScalarAll()"> Show point labels
                         </label>
+                        <div class="steps-toggle-row">
+                            <button id="scalarToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('scalar')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
                         <div id="multiplicationPointInfo" class="point-info" aria-live="polite"></div>
                         <div id="animationControls" class="anim-controls" style="display:none;">
                             <button id="prevStepBtn" onclick="prevScalarStep()" disabled>Prev</button>

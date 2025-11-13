@@ -41,10 +41,10 @@
         }
 
         function updateThemeIcon(theme) {
-            const icon = document.querySelector('.theme-icon');
-            if (icon) {
+            const icons = document.querySelectorAll('.theme-icon');
+            icons.forEach(icon => {
                 icon.textContent = theme === 'dark' ? '☀️' : '🌙';
-            }
+            });
         }
 
         // Listen to system theme changes
@@ -340,6 +340,38 @@
                 helpToast.style.minWidth = '320px';
             }
         }
+
+        // About Modal Functions
+        function toggleAboutModal() {
+            const modal = document.getElementById('aboutModal');
+            if (modal.classList.contains('active')) {
+                closeAboutModal();
+            } else {
+                openAboutModal();
+            }
+        }
+
+        function openAboutModal() {
+            const modal = document.getElementById('aboutModal');
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAboutModal() {
+            const modal = document.getElementById('aboutModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const aboutModal = document.getElementById('aboutModal');
+                if (aboutModal && aboutModal.classList.contains('active')) {
+                    closeAboutModal();
+                }
+            }
+        });
 
         function showFormulaReference() {
             const formulaMessage = `
@@ -638,7 +670,15 @@
             const ctx = canvas.getContext('2d', { alpha: false });
             // Work in CSS pixels
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
             return { ctx, cssWidth, cssHeight, dpr };
+        }
+
+        // Clear canvas with theme-aware background color
+        function clearCanvas(ctx, width, height) {
+            const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim();
+            ctx.fillStyle = bgColor || '#ffffff';
+            ctx.fillRect(0, 0, width, height);
         }
 
         // Debounce function for canvas redraws
@@ -715,8 +755,8 @@
                     document.getElementById('pointsList').innerHTML = html;
 
                     populateSelectors();
-                    // Draw points on canvases right away
-                    redrawAllCurves();
+                    // Animate points appearing
+                    startFpInitializationAnimation();
                 } else {
                     curveInfo.innerHTML = `<div class="error">${data.error}</div>`;
                 }
@@ -734,7 +774,7 @@
                     const canvasData = setupCanvas(addCanvas);
                     if (canvasData) {
                         const { ctx, cssWidth, cssHeight } = canvasData;
-                        ctx.clearRect(0, 0, cssWidth, cssHeight);
+                        clearCanvas(ctx, cssWidth, cssHeight);
                         drawAxesGrid(ctx, addCanvas);
                         // Always draw base points without labels; labels for P,Q,R handled separately
                         drawCurvePoints(ctx, addCanvas, '#8a8a8a', false);
@@ -749,7 +789,7 @@
                     const canvasData = setupCanvas(mulCanvas);
                     if (canvasData) {
                         const { ctx, cssWidth, cssHeight } = canvasData;
-                        ctx.clearRect(0, 0, cssWidth, cssHeight);
+                        clearCanvas(ctx, cssWidth, cssHeight);
                         drawAxesGrid(ctx, mulCanvas);
                         drawCurvePoints(ctx, mulCanvas, '#8a8a8a', document.getElementById('multiplicationShowLabels')?.checked);
                         if (selectedMultiplicationIndex !== null && currentPoints[selectedMultiplicationIndex]) {
@@ -772,7 +812,7 @@
                         const canvasData = setupCanvas(canvas);
                         if (canvasData) {
                             const { ctx, cssWidth, cssHeight } = canvasData;
-                            ctx.clearRect(0, 0, cssWidth, cssHeight);
+                            clearCanvas(ctx, cssWidth, cssHeight);
                             drawAxesGrid(ctx, canvas);
                             // Always draw base points without labels; labels are applied only to P,Q,R
                             drawCurvePoints(ctx, canvas, '#8a8a8a', false);
@@ -799,6 +839,37 @@
                     select.appendChild(option);
                 });
             });
+        }
+
+        const OPERATION_RESULT_MAP = {
+            addition: 'additionResult',
+            scalar: 'scalarResult',
+            realAddition: 'realAdditionResult',
+            realScalar: 'realScalarResult',
+        };
+
+        function getOperationResultContainer(operation) {
+            const id = OPERATION_RESULT_MAP[operation];
+            if (!id) return null;
+            return document.getElementById(id);
+        }
+
+        function applyStepsVisibility(operation, visible) {
+            const container = getOperationResultContainer(operation);
+            if (!container) return;
+            container.querySelectorAll('.steps-container').forEach(el => {
+                el.style.display = visible ? '' : 'none';
+            });
+        }
+
+        function toggleStepsDisplay(operation) {
+            const btn = document.getElementById(`${operation}ToggleStepsBtn`);
+            if (!btn) return;
+            const currentlyVisible = btn.getAttribute('data-visible') !== 'false';
+            const nextVisible = !currentlyVisible;
+            btn.setAttribute('data-visible', nextVisible ? 'true' : 'false');
+            btn.textContent = nextVisible ? 'Hide steps' : 'Show steps';
+            applyStepsVisibility(operation, nextVisible);
         }
 
         // Add points - calls API
@@ -866,6 +937,8 @@
                     window._lastAdditionP = currentPoints[p1Index];
                     window._lastAdditionQ = currentPoints[p2Index];
                     window._lastAdditionR = data.result;
+                    const additionVisible = document.getElementById('additionToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
+                    applyStepsVisibility('addition', additionVisible);
                     visualizeAddition(window._lastAdditionP, window._lastAdditionQ, window._lastAdditionR);
                     // animate addition pulse
                     startFpAdditionAnimation(window._lastAdditionP, window._lastAdditionQ, window._lastAdditionR);
@@ -958,6 +1031,8 @@
                     }
                     // Animate plotting of 1P..kP
                     startFpMultiplicationAnimation();
+                    const scalarVisible = document.getElementById('scalarToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
+                    applyStepsVisibility('scalar', scalarVisible);
                 } else {
                     resultDiv.innerHTML = `<div class="error">${data.error}</div>`;
                 }
@@ -1021,7 +1096,7 @@
         function visualizeAddition(P, Q, R) {
             const canvas = document.getElementById('additionCanvas');
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0, 0, cssWidth, cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             
             drawAxesGrid(ctx, canvas);
             // Always draw full curve points without labels
@@ -1071,13 +1146,98 @@
             }
         }
 
-        // Pulse animation for Fp addition
-        let _fpAddAnim = { active:false, raf:null, started:0, duration:1300 };
+        // Progressive point reveal animation for Fp initialization
+        let _fpInitAnim = { active:false, raf:null };
+        function startFpInitializationAnimation(){
+            if (!currentPoints || !currentPoints.length) { redrawAllCurves(); return; }
+            if (_fpInitAnim.raf) cancelAnimationFrame(_fpInitAnim.raf);
+            _fpInitAnim.active = true;
+            const start = performance.now();
+            const totalPoints = currentPoints.length;
+            const duration = Math.min(2500, totalPoints * 40); // 40ms per point, max 2.5s
+
+            const step = (now)=>{
+                const elapsed = now - start;
+                const progress = Math.min(1, elapsed / duration);
+                const pointsToShow = Math.ceil(progress * totalPoints);
+
+                // Draw on both visible canvases
+                const addCanvas = document.getElementById('additionCanvas');
+                if (addCanvas && addCanvas.offsetParent !== null) {
+                    const canvasData = setupCanvas(addCanvas);
+                    if (canvasData) {
+                        const { ctx, cssWidth, cssHeight } = canvasData;
+                        clearCanvas(ctx, cssWidth, cssHeight);
+                        drawAxesGrid(ctx, addCanvas);
+                        drawPartialCurvePoints(ctx, addCanvas, '#8a8a8a', false, pointsToShow);
+                    }
+                }
+
+                const mulCanvas = document.getElementById('multiplicationCanvas');
+                if (mulCanvas && mulCanvas.offsetParent !== null) {
+                    const canvasData = setupCanvas(mulCanvas);
+                    if (canvasData) {
+                        const { ctx, cssWidth, cssHeight } = canvasData;
+                        clearCanvas(ctx, cssWidth, cssHeight);
+                        drawAxesGrid(ctx, mulCanvas);
+                        drawPartialCurvePoints(ctx, mulCanvas, '#8a8a8a', false, pointsToShow);
+                    }
+                }
+
+                if (progress < 1){
+                    _fpInitAnim.raf = requestAnimationFrame(step);
+                } else {
+                    _fpInitAnim.active = false;
+                    _fpInitAnim.raf = null;
+                    redrawAllCurves();
+                }
+            };
+            _fpInitAnim.raf = requestAnimationFrame(step);
+        }
+
+        // Helper to draw only first N points
+        function drawPartialCurvePoints(ctx, canvas, color, showLabels, count) {
+            const padding = 50;
+            const cssWidth = (canvas.clientWidth || canvas.width);
+            const cssHeight = (canvas.clientHeight || canvas.height);
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, (currentCurve.p || 1) - 1);
+
+            const pointsToRender = currentPoints.slice(0, count);
+            pointsToRender.forEach((point, index) => {
+                if (point.display === 'O') return;
+                const px = padding + (point.x / maxVal) * width;
+                const py = cssHeight - padding - (point.y / maxVal) * height;
+
+                // Calculate fade-in effect for last few points
+                const fadeStart = Math.max(0, count - 5);
+                const alpha = index < fadeStart ? 1 : 0.3 + 0.7 * ((index - fadeStart) / 5);
+
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(px, py, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                if (showLabels) {
+                    ctx.font = '9px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = color;
+                    ctx.fillText(`(${point.x},${point.y})`, px + 6, py);
+                }
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // Enhanced animation for Fp addition with lines
+        let _fpAddAnim = { active:false, raf:null, started:0, duration:2000 };
         function startFpAdditionAnimation(P, Q, R){
             const canvas = document.getElementById('additionCanvas');
             if (!canvas) return;
             if (_fpAddAnim.raf) cancelAnimationFrame(_fpAddAnim.raf);
-            _fpAddAnim = { active:true, raf:null, started: performance.now(), duration:1300 };
+            _fpAddAnim = { active:true, raf:null, started: performance.now(), duration:2000 };
             const map = (px, py) => {
                 const padding = 50;
                 const cssWidth = (canvas.clientWidth || canvas.width);
@@ -1091,20 +1251,86 @@
             };
             const tick = (now)=>{
                 const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-                ctx.clearRect(0,0,cssWidth,cssHeight);
+                clearCanvas(ctx, cssWidth, cssHeight);
                 drawAxesGrid(ctx, canvas);
-                drawCurvePoints(ctx, canvas, '#8a8a8a', document.getElementById('additionShowLabels')?.checked);
-                if (P.x !== null) drawPoint(ctx, canvas, P.x, P.y, '#2563eb', 6, 'P');
-                if (Q.x !== null) drawPoint(ctx, canvas, Q.x, Q.y, '#f97316', 6, 'Q');
-                if (R.x !== null) drawPoint(ctx, canvas, R.x, R.y, '#166534', 7, 'R');
+                drawCurvePoints(ctx, canvas, '#8a8a8a', false);
+
                 const t = Math.min(1, (now - _fpAddAnim.started) / _fpAddAnim.duration);
-                const pulse = (base, color)=>{
-                    ctx.strokeStyle = color; ctx.lineWidth = 2;
-                    ctx.beginPath(); ctx.arc(base.x, base.y, 10 + 8*Math.sin(t*Math.PI), 0, 2*Math.PI); ctx.stroke();
-                };
-                if (P.x !== null){ const p = map(P.x, P.y); pulse(p, '#2563eb'); }
-                if (Q.x !== null){ const q = map(Q.x, Q.y); pulse(q, '#f97316'); }
-                if (R.x !== null && t>0.5){ const r = map(R.x, R.y); pulse(r, '#166534'); }
+
+                // Phase 1: Show P and Q (0 to 0.3)
+                const phase1 = Math.min(1, t / 0.3);
+
+                // Phase 2: Draw line from P to Q (0.3 to 0.6)
+                const phase2 = Math.max(0, Math.min(1, (t - 0.3) / 0.3));
+
+                // Phase 3: Show R (0.6 to 1.0)
+                const phase3 = Math.max(0, Math.min(1, (t - 0.6) / 0.4));
+
+                // Draw P and Q
+                if (P.x !== null && phase1 > 0) {
+                    const scale = 0.5 + 0.5 * phase1;
+                    ctx.save();
+                    const p = map(P.x, P.y);
+                    ctx.translate(p.x, p.y);
+                    ctx.scale(scale, scale);
+                    ctx.translate(-p.x, -p.y);
+                    drawPoint(ctx, canvas, P.x, P.y, '#2563eb', 6, 'P');
+                    ctx.restore();
+                }
+
+                if (Q.x !== null && phase1 > 0) {
+                    const scale = 0.5 + 0.5 * phase1;
+                    ctx.save();
+                    const q = map(Q.x, Q.y);
+                    ctx.translate(q.x, q.y);
+                    ctx.scale(scale, scale);
+                    ctx.translate(-q.x, -q.y);
+                    drawPoint(ctx, canvas, Q.x, Q.y, '#f97316', 6, 'Q');
+                    ctx.restore();
+                }
+
+                // Draw connecting line
+                if (P.x !== null && Q.x !== null && phase2 > 0) {
+                    const p = map(P.x, P.y);
+                    const q = map(Q.x, Q.y);
+                    const lineProgress = phase2;
+                    const currentX = p.x + (q.x - p.x) * lineProgress;
+                    const currentY = p.y + (q.y - p.y) * lineProgress;
+
+                    ctx.strokeStyle = '#93c5fd';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(currentX, currentY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // Draw R with entrance animation
+                if (R.x !== null && phase3 > 0) {
+                    const scale = 0.5 + 0.5 * phase3;
+                    ctx.save();
+                    const r = map(R.x, R.y);
+                    ctx.translate(r.x, r.y);
+                    ctx.scale(scale, scale);
+                    ctx.translate(-r.x, -r.y);
+                    drawPoint(ctx, canvas, R.x, R.y, '#166534', 7, 'R');
+                    ctx.restore();
+
+                    // Pulse effect on R
+                    if (phase3 > 0.5) {
+                        const pulseT = (phase3 - 0.5) / 0.5;
+                        ctx.strokeStyle = '#166534';
+                        ctx.lineWidth = 2;
+                        ctx.globalAlpha = 1 - pulseT * 0.7;
+                        ctx.beginPath();
+                        ctx.arc(r.x, r.y, 10 + 15 * pulseT, 0, 2 * Math.PI);
+                        ctx.stroke();
+                        ctx.globalAlpha = 1;
+                    }
+                }
+
                 if (t < 1){ _fpAddAnim.raf = requestAnimationFrame(tick); }
                 else { _fpAddAnim.active = false; _fpAddAnim.raf = null; visualizeAddition(P, Q, R); }
             };
@@ -1115,7 +1341,7 @@
             const canvas = document.getElementById('multiplicationCanvas');
             if (!canvas) return;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0, 0, cssWidth, cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawAxesGrid(ctx, canvas);
             // Always show the full discrete curve points (no labels)
             drawCurvePoints(ctx, canvas, '#8a8a8a', false);
@@ -1130,6 +1356,29 @@
             const width = cW - 2 * padding;
             const height = cH - 2 * padding;
             const maxVal = Math.max(1, (currentCurve.p || 1) - 1);
+
+            // Draw connecting lines between consecutive multiples
+            ctx.strokeStyle = '#93c5fd';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.globalAlpha = 0.4;
+            for (let i = 1; i < fpScalarPoints.length; i++) {
+                const prev = fpScalarPoints[i - 1];
+                const curr = fpScalarPoints[i];
+                if (!prev || !curr || prev.x === null || curr.x === null) continue;
+
+                const x1 = padding + (prev.x / maxVal) * width;
+                const y1 = cH - padding - (prev.y / maxVal) * height;
+                const x2 = padding + (curr.x / maxVal) * width;
+                const y2 = cH - padding - (curr.y / maxVal) * height;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
 
             fpScalarPoints.forEach((pt, i) => {
                 if (pt && pt.x !== null) {
@@ -1162,7 +1411,7 @@
             const canvas = document.getElementById('multiplicationCanvas');
             if (!canvas) return;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0, 0, cssWidth, cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawAxesGrid(ctx, canvas);
             drawCurvePoints(ctx, canvas, '#8a8a8a', false);
 
@@ -1174,11 +1423,59 @@
             const maxVal = Math.max(1, (currentCurve.p || 1) - 1);
 
             const n = Math.min(count, fpScalarPoints.length);
-            for (let i=0;i<n;i++){
+
+            // Draw connecting lines between consecutive points
+            ctx.strokeStyle = '#93c5fd';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.globalAlpha = 0.5;
+            for (let i = 1; i < n; i++) {
+                const prev = fpScalarPoints[i - 1];
+                const curr = fpScalarPoints[i];
+                if (!prev || !curr || prev.x === null || curr.x === null) continue;
+
+                const x1 = padding + (prev.x / maxVal) * width;
+                const y1 = cH - padding - (prev.y / maxVal) * height;
+                const x2 = padding + (curr.x / maxVal) * width;
+                const y2 = cH - padding - (curr.y / maxVal) * height;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+
+            // Draw points with fade-in effect
+            for (let i = 0; i < n; i++){
                 const pt = fpScalarPoints[i];
                 if (!pt || pt.x === null) continue;
+
+                // Fade-in effect for the last point
+                if (i === n - 1) {
+                    const fadeProgress = (count % 1);
+                    ctx.globalAlpha = 0.3 + 0.7 * fadeProgress;
+                }
+
                 const lbl = `${i+1}P`;
                 drawPoint(ctx, canvas, pt.x, pt.y, '#166534', 6, lbl);
+
+                ctx.globalAlpha = 1;
+
+                // Pulse effect on the newest point
+                if (i === n - 1 && count % 1 > 0.5) {
+                    const pulseT = (count % 1 - 0.5) / 0.5;
+                    const x = padding + (pt.x / maxVal) * width;
+                    const y = cH - padding - (pt.y / maxVal) * height;
+                    ctx.strokeStyle = '#166534';
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 1 - pulseT * 0.6;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 10 + 8 * pulseT, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
             }
         }
 
@@ -1187,12 +1484,13 @@
             if (_fpMulAnim.raf) cancelAnimationFrame(_fpMulAnim.raf);
             _fpMulAnim.active = true;
             const start = performance.now();
-            const per = 280; // ms per point
+            const per = 350; // ms per point (slower for better visibility)
             const tick = (now)=>{
                 const elapsed = now - start;
-                const shown = Math.min(fpScalarPoints.length, Math.floor(elapsed / per) + 1);
-                renderFpScalarPartial(shown);
-                if (shown < fpScalarPoints.length) {
+                // Use fractional count for smoother animation
+                const shownFloat = Math.min(fpScalarPoints.length, elapsed / per + 1);
+                renderFpScalarPartial(shownFloat);
+                if (shownFloat < fpScalarPoints.length) {
                     _fpMulAnim.raf = requestAnimationFrame(tick);
                 } else {
                     _fpMulAnim.active = false; _fpMulAnim.raf = null;
@@ -1364,6 +1662,7 @@
             });
             attachCanvasClickHandlers();
             attachRealCanvasHandlers();
+            initRealPointStatusWatchers();
             loadSession();
             initPresetMonitor();
             initValidation();
@@ -1591,11 +1890,13 @@
         let realP = null; // {x,y}
         let realQ = null; // {x,y}
         let realR = null; // {x,y}
+        let realAdditionComputed = false;
         let realScalarSteps = [];
         let realScalarPoints = [];
         let realCurrentStep = 0;
         let realAnimInterval = null;
         let realPickPhase = 'P';
+        const REAL_POINT_TOLERANCE = 1e-6;
 
         async function initRealCurve(){
             const a = parseFloat(document.getElementById('realParamA').value);
@@ -1625,6 +1926,49 @@
                 redrawRealCanvases();
                 startRealCurveDrawAnimation();
             } catch(e){ alert('Connection error'); }
+        }
+
+        function isPointOnRealCurveCoord(xVal, yVal) {
+            const xNum = parseFloat(xVal);
+            const yNum = parseFloat(yVal);
+            if (Number.isNaN(xNum) || Number.isNaN(yNum)) return false;
+            const expected = xNum * xNum * xNum + realCurve.a * xNum + realCurve.b;
+            return Math.abs(yNum * yNum - expected) <= REAL_POINT_TOLERANCE;
+        }
+
+        function updateRealPointStatus(statusId, xId, yId) {
+            const statusEl = document.getElementById(statusId);
+            if (!statusEl) return false;
+            const xVal = document.getElementById(xId)?.value;
+            const yVal = document.getElementById(yId)?.value;
+            if (!xVal || !yVal) {
+                statusEl.textContent = 'Enter both coordinates';
+                statusEl.classList.remove('valid', 'invalid');
+                return false;
+            }
+            const valid = isPointOnRealCurveCoord(xVal, yVal);
+            statusEl.textContent = valid ? 'Point on curve ✓' : 'Not on curve ✕';
+            statusEl.classList.toggle('valid', valid);
+            statusEl.classList.toggle('invalid', !valid);
+            return valid;
+        }
+
+        function initRealPointStatusWatchers() {
+            const pairs = [
+                { status: 'realPoint1Status', x: 'realP1X', y: 'realP1Y' },
+                { status: 'realPoint2Status', x: 'realP2X', y: 'realP2Y' },
+                { status: 'realScalarPointStatus', x: 'realMulPX', y: 'realMulPY' },
+            ];
+            pairs.forEach(({ status, x, y }) => {
+                const update = () => updateRealPointStatus(status, x, y);
+                [x, y].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('input', update);
+                    el.addEventListener('change', update);
+                });
+                update();
+            });
         }
 
         function attachRealCanvasHandlers(){
@@ -1843,7 +2187,7 @@
             const canvas = document.getElementById('realCurveCanvas');
             if (!canvas) return;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0,0,cssWidth,cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawRealAxesGrid(ctx, canvas);
             drawRealCurve(ctx, canvas, realCurve.a, realCurve.b, _realCurveAnim.active ? Math.min(1,_realCurveAnim.t) : 1);
         }
@@ -1918,6 +2262,10 @@
                 document.getElementById('realP2X').value = x; document.getElementById('realP2Y').value = pickY;
                 realPickPhase = 'P'; if (modeEl) modeEl.value = 'P';
             }
+            realAdditionComputed = false;
+            realR = null;
+            updateRealPointStatus('realPoint1Status','realP1X','realP1Y');
+            updateRealPointStatus('realPoint2Status','realP2X','realP2Y');
             drawRealAdditionScene();
         }
 
@@ -1948,6 +2296,7 @@
 
             // Preview on the multiplication canvas
             visualizeRealScalarStep(0);
+            updateRealPointStatus('realScalarPointStatus','realMulPX','realMulPY');
         }
 
         async function addPointsReal(){
@@ -1968,6 +2317,14 @@
                 resDiv.innerHTML = `<div class="error">Points must lie within [${realRange.xMin}, ${realRange.xMax}] × [${realRange.yMin}, ${realRange.yMax}]</div>`;
                 return;
             }
+            const p1Valid = updateRealPointStatus('realPoint1Status','realP1X','realP1Y');
+            const p2Valid = updateRealPointStatus('realPoint2Status','realP2X','realP2Y');
+            if (!p1Valid || !p2Valid) {
+                resDiv.innerHTML = '<div class="error">Points must lie on the curve</div>';
+                return;
+            }
+            realAdditionComputed = false;
+            realR = null;
             resDiv.innerHTML = '<p style="color:#888;">Calculating...</p>';
             try{
                 const r = await fetch('/api/add_points_real',{method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({a, b, p1:{x:p1x,y:p1y,display:''}, p2:{x:p2x,y:p2y,display:''}})});
@@ -1977,6 +2334,7 @@
                 realP = {x:p1x, y:p1y};
                 realQ = {x:p2x, y:p2y};
                 realR = data.result.x === null ? null : {x:data.result.x, y:data.result.y};
+                realAdditionComputed = true;
                 const resultText = `P = (${formatNum(p1x)}, ${formatNum(p1y)}), Q = (${formatNum(p2x)}, ${formatNum(p2y)}), P + Q = ${realR ? `(${formatNum(realR.x)}, ${formatNum(realR.y)})` : 'O'}`;
 
                 // Build steps HTML
@@ -2007,11 +2365,13 @@
                         <button class="copy-btn" onclick="copyResultAsText('${resultText}', 'Addition result')">📋 Copy Text</button>
                         <button class="copy-btn" onclick='copyResultAsJSON({P: {x: ${p1x}, y: ${p1y}}, Q: {x: ${p2x}, y: ${p2y}}, result: ${JSON.stringify(data.result)}, steps: ${JSON.stringify(data.steps || [])}}, "Addition result")'>📄 Copy JSON</button>
                     </div>
-                `;
+                    `;
                 drawRealAdditionScene();
                 // reset auto-pick to P after calculation
                 realPickPhase = 'P'; const _modeEl = document.getElementById('realSelectMode'); if (_modeEl) _modeEl.value = 'P';
                 startRealAdditionAnimation();
+                const realAddVisible = document.getElementById('realAdditionToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
+                applyStepsVisibility('realAddition', realAddVisible);
             }catch(e){ resDiv.innerHTML = '<div class="error">Connection error</div>'; }
         }
 
@@ -2020,14 +2380,14 @@
             if (!canvas) return;
             const showLabels = document.getElementById('realAdditionShowLabels')?.checked;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0,0,cssWidth,cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawRealAxesGrid(ctx, canvas);
             drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
 
             // Draw points and line
             if (realP){ drawRealPoint(ctx, canvas, realP, '#2563eb', 'P', showLabels); }
             if (realQ){ drawRealPoint(ctx, canvas, realQ, '#f97316', 'Q', showLabels); }
-            if (realP && realQ && !(_realAddAnim && _realAddAnim.active)){
+            if (realP && realQ && realAdditionComputed && !(_realAddAnim && _realAddAnim.active)){
                 let m;
                 if (Math.abs(realP.x - realQ.x) < 1e-12 && Math.abs(realP.y - realQ.y) < 1e-12) {
                     if (Math.abs(realP.y) < 1e-12) { m = null; } else { m = (3*realP.x*realP.x + realCurve.a) / (2*realP.y); }
@@ -2081,7 +2441,7 @@
 
                 const canvas = document.getElementById('realAdditionCanvas');
                 const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-                ctx.clearRect(0,0,cssWidth,cssHeight);
+                clearCanvas(ctx, cssWidth, cssHeight);
                 drawRealAxesGrid(ctx, canvas);
                 drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
                 drawRealPoint(ctx, canvas, realP, '#2563eb', 'P', true);
@@ -2137,6 +2497,21 @@
             }
         }
 
+        function drawRealLineBetweenPoints(ctx, canvas, P, Q, color) {
+            if (!P || !Q || P.x === null || P.y === null || Q.x === null || Q.y === null) return;
+            const start = mapRealToCanvas(canvas, P.x, P.y);
+            const end = mapRealToCanvas(canvas, Q.x, Q.y);
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(start.px, start.py);
+            ctx.lineTo(end.px, end.py);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         async function scalarMultiplyReal(){
             const a = parseFloat(document.getElementById('realParamA').value);
             const b = parseFloat(document.getElementById('realParamB').value);
@@ -2146,6 +2521,11 @@
             const resDiv = document.getElementById('realScalarResult');
             if ([px,py].some(Number.isNaN) || Number.isNaN(k)){
                 resDiv.innerHTML = '<div class="error">Enter P and k</div>';
+                return;
+            }
+            const pointValid = updateRealPointStatus('realScalarPointStatus','realMulPX','realMulPY');
+            if (!pointValid) {
+                resDiv.innerHTML = '<div class="error">Point must lie on the curve</div>';
                 return;
             }
             if (!(px>=realRange.xMin && px<=realRange.xMax && py>=realRange.yMin && py<=realRange.yMax)){
@@ -2174,7 +2554,9 @@
                         <button class="copy-btn" onclick="copyResultAsText('${resultText}', 'Multiplication result')">📋 Copy Text</button>
                         <button class="copy-btn" onclick='copyResultAsJSON({P: {x: ${px}, y: ${py}}, k: ${k}, result: ${JSON.stringify(data.result)}, steps: ${JSON.stringify(data.steps || [])}}, "Multiplication result")'>📄 Copy JSON</button>
                     </div>
-                `;
+                    `;
+                const realScalarVisible = document.getElementById('realScalarToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
+                applyStepsVisibility('realScalar', realScalarVisible);
             }catch(e){ resDiv.innerHTML = '<div class="error">Connection error</div>'; }
         }
 
@@ -2183,7 +2565,7 @@
             if (!canvas) return;
             const showLabels = document.getElementById('realMultiplicationShowLabels')?.checked;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0,0,cssWidth,cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawRealAxesGrid(ctx, canvas);
             drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
             // Draw all computed multiples; always label as 1P, 2P, ...
@@ -2236,13 +2618,34 @@
             if (!canvas) return;
             const showLabels = document.getElementById('realMultiplicationShowLabels')?.checked;
             const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
-            ctx.clearRect(0,0,cssWidth,cssHeight);
+            clearCanvas(ctx, cssWidth, cssHeight);
             drawRealAxesGrid(ctx, canvas);
             drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
-            const n = Math.min(count, realScalarPoints.length);
-            for (let i=0;i<n;i++){
+            const n = Math.floor(count);
+            const fractionalPart = count - n;
+
+            // Draw all connecting lines first (behind points)
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
+            for (let i = 1; i < n; i++){
+                const prev = realScalarPoints[i - 1];
+                const curr = realScalarPoints[i];
+                if (!prev || !curr || prev.x === null || curr.x === null) continue;
+                drawRealLineBetweenPoints(ctx, canvas, prev, curr, '#60a5fa');
+            }
+            ctx.globalAlpha = 1;
+
+            // Draw points with effects
+            for (let i = 0; i < n; i++){
                 const pt = realScalarPoints[i];
                 if (!pt || pt.x === null) continue;
+
+                // Fade-in effect for last point
+                if (i === n - 1 && fractionalPart < 1) {
+                    ctx.globalAlpha = 0.3 + 0.7 * fractionalPart;
+                }
+
                 drawRealPoint(ctx, canvas, pt, '#64748b', '', false);
                 const pxy = mapRealToCanvas(canvas, pt.x, pt.y);
                 const lbl = `${i+1}P`;
@@ -2260,6 +2663,20 @@
                     ctx.fillStyle = '#bbb';
                     ctx.fillText(coord, pxy.px, pxy.py - 26);
                 }
+
+                ctx.globalAlpha = 1;
+
+                // Pulse effect on the newest point
+                if (i === n - 1 && fractionalPart > 0.5) {
+                    const pulseT = (fractionalPart - 0.5) / 0.5;
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 1 - pulseT * 0.6;
+                    ctx.beginPath();
+                    ctx.arc(pxy.px, pxy.py, 8 + 8 * pulseT, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
             }
         }
         function startRealMultiplicationAnimation(){
@@ -2267,12 +2684,13 @@
             if (_realMulAnim.raf) cancelAnimationFrame(_realMulAnim.raf);
             _realMulAnim.active = true;
             const start = performance.now();
-            const per = 320;
+            const per = 400; // ms per point (slightly slower for better visibility)
             const step = (now)=>{
                 const elapsed = now - start;
-                const shown = Math.min(realScalarPoints.length, Math.floor(elapsed / per) + 1);
-                renderRealScalarPartial(shown);
-                if (shown < realScalarPoints.length){ _realMulAnim.raf = requestAnimationFrame(step); }
+                // Use fractional count for smoother animation
+                const shownFloat = Math.min(realScalarPoints.length, elapsed / per + 1);
+                renderRealScalarPartial(shownFloat);
+                if (shownFloat < realScalarPoints.length){ _realMulAnim.raf = requestAnimationFrame(step); }
                 else { _realMulAnim.active=false; _realMulAnim.raf=null; renderRealScalarAll(); }
             };
             _realMulAnim.raf = requestAnimationFrame(step);
@@ -2449,8 +2867,43 @@
             overlay.classList.add('visible');
             toggleBtn.classList.add('active');
 
+            // Update user info in menu
+            updateMenuUserInfo();
+
             // Load history when opening
             loadUnifiedHistory();
+        }
+
+        // Update user info displayed in menu
+        function updateMenuUserInfo() {
+            const userName = localStorage.getItem('username');
+            const menuUserName = document.getElementById('menuUserName');
+            const menuUserStatus = document.getElementById('menuUserStatus');
+            const menuAuthBtn = document.getElementById('menuAuthBtn');
+
+            if (userName) {
+                // User is logged in
+                if (menuUserName) menuUserName.textContent = userName;
+                if (menuUserStatus) menuUserStatus.textContent = 'Signed in';
+                if (menuAuthBtn) {
+                    menuAuthBtn.textContent = 'Sign Out';
+                    menuAuthBtn.onclick = () => {
+                        doLogout();
+                        closeHistoryPanel();
+                    };
+                }
+            } else {
+                // User is not logged in
+                if (menuUserName) menuUserName.textContent = 'Guest';
+                if (menuUserStatus) menuUserStatus.textContent = 'Not signed in';
+                if (menuAuthBtn) {
+                    menuAuthBtn.textContent = 'Sign In';
+                    menuAuthBtn.onclick = () => {
+                        openLoginModal();
+                        closeHistoryPanel();
+                    };
+                }
+            }
         }
 
         function closeHistoryPanel() {
