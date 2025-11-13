@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/signup.css') }}">
+    </head>
+<body>
+    <div class="bg">
+        <div class="card">
+            <div style="text-align:center;">
+                <div class="icon" aria-hidden="true">📝</div>
+                <div class="title">Create your account</div>
+                <div class="sub">Start exploring elliptic curves.</div>
+            </div>
+
+            <div class="form">
+            <div class="field">
+                <input id="suUsername" type="text" placeholder="Username">
+                <div id="suUsernameErr" class="err"></div>
+            </div>
+            
+            <div class="field">
+                <input id="suPassword" type="password" placeholder="Password">
+                <div id="suPasswordErr" class="err"></div>
+            </div>
+            <div class="field">
+                <input id="suConfirm" type="password" placeholder="Confirm password">
+                <div id="suConfirmErr" class="err"></div>
+            </div>
+            
+
+            <button class="btn-primary-dark" onclick="submitSignupCard()">Create account</button>
+            <div class="sep"><div class="line"></div><div class="txt">Or</div><div class="line"></div></div>
+            <div class="pills">
+                <button class="pill secondary" onclick="goLogin()">Back to login</button>
+                <button class="pill ghost" onclick="continueAsGuestCard()">Continue as guest</button>
+            </div>
+            <div id="suMsg" class="msg" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+        <script src="{{ url_for('static', filename='js/signup.js') }}"></script>
+
+</html>

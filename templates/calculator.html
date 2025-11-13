@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elliptic Curve</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/calculator.css') }}">
+        </head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <div class="loading-text">Calculating...</div>
+            <div class="loading-details"></div>
+        </div>
+    </div>
+
+    <!-- History Panel Overlay -->
+    <div id="historyOverlay" class="history-overlay" onclick="closeHistoryPanel()"></div>
+
+    <!-- Sliding History Panel -->
+    <div id="historyPanel" class="history-panel">
+        <div class="history-panel-header">
+            <h2>📜 History</h2>
+            <button class="history-close-btn" onclick="closeHistoryPanel()" aria-label="Close history panel">×</button>
+        </div>
+        <div class="history-panel-content">
+            <div class="history-panel-controls">
+                <button onclick="refreshUnifiedHistory()">🔄 Refresh</button>
+                <button onclick="exportUnifiedHistory()">💾 Export</button>
+                <button onclick="clearUnifiedHistory()">🗑️ Clear</button>
+            </div>
+            <div id="unifiedHistoryList" class="history-list"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>Elliptic Curve</h1>
+            <div class="header-buttons">
+                <button class="header-btn" onclick="showFormulaReference()" title="Formula reference (F)" aria-label="Show formula reference">
+                    📐
+                </button>
+                <button class="header-btn" onclick="showKeyboardHelp()" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">
+                    ⌨️
+                </button>
+                <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode" aria-label="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+                <button class="history-toggle" onclick="toggleHistoryPanel()" title="History (Ctrl+H)" aria-label="Toggle history panel">
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
+                    <div class="hamburger-line"></div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Auth Overlay -->
+        <div id="authOverlay" class="auth-overlay">
+            <div class="auth-card">
+                <div style="text-align:center;">
+                    <div class="auth-icon" aria-hidden="true">🔐</div>
+                    <div class="auth-title">Sign in</div>
+                    <div class="auth-sub">Access your elliptic curve workspace.</div>
+                </div>
+                <div class="auth-form">
+                    <div class="auth-field">
+                        <svg class="auth-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+                        <input id="loginUsername" type="text" placeholder="Username">
+                        <div id="loginUsernameErr" class="field-error" style="display:none;"></div>
+                    </div>
+                    <div class="auth-field">
+                        <svg class="auth-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6-6V9a6 6 0 1 0-12 0v2H4v10h16V11h-2zm-8-2a4 4 0 1 1 8 0v2H10V9z"/></svg>
+                        <input id="loginPassword" type="password" placeholder="Password">
+                        <div id="loginPasswordErr" class="field-error" style="display:none;"></div>
+                    </div>
+                    <div class="auth-right-row">
+                        <a class="auth-right-link" href="#" onclick="alert('Reset link flow not implemented')">Forgot password?</a>
+                    </div>
+                    <button class="btn-primary-dark" onclick="submitLoginCard()">Get Started</button>
+                    <div class="auth-sep"><div class="line"></div><div class="txt">Or</div><div class="line"></div></div>
+                    <div class="btn-row">
+                        <button class="btn-pill secondary" onclick="openSignupPage()">Create an account</button>
+                        <button class="btn-pill ghost" onclick="continueAsGuestCard()">Continue as guest</button>
+                    </div>
+                    <div id="authMsgOverlay" class="auth-msg" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="content">
+            
+            <!-- Tabs Header + Profile -->
+            <div class="panel full-width">
+                <div class="tabs-bar">
+                    <div class="tabs">
+                        <button class="tab-btn" data-tab="aboutTab" onclick="switchTab('aboutTab')">About</button>
+                        <button class="tab-btn" data-tab="realTab" onclick="switchTab('realTab')">Curve over ℝ</button>
+                        <button class="tab-btn active" data-tab="fpTab" onclick="switchTab('fpTab')">Curve over Fp</button>
+                    </div>
+                    <div class="profile-area">
+                        <button id="profileBtn" class="profile-btn" onclick="toggleProfileMenu()" aria-haspopup="true" aria-expanded="false" title="Profile">👤</button>
+                        <div id="profileMenu" class="profile-menu" role="menu">
+                            <div class="header">Signed in as <span id="profileName">user</span></div>
+                            <button id="menuLogin" class="dropdown-item" style="display:none;" onclick="hideProfileMenu(); openLoginModal();">Login</button>
+                            <button id="menuLogout" class="dropdown-item" onclick="hideProfileMenu(); doLogout();">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About Tab -->
+            <div id="aboutTab" class="tab-pane">
+                <div class="panel full-width">
+                    <h2>About</h2>
+                    <p style="margin-bottom: 12px; color:#ccc;">
+                        This app lets you explore elliptic curves over finite fields. You can generate all points on a curve,
+                        add two points using the group law, and follow scalar multiplication step by step with a clear, discrete visualization.
+                    </p>
+
+                    <div class="math-formula">y² = x³ + ax + b (mod p)</div>
+
+                    <p style="margin: 12px 0; color:#ccc;">
+                        Here, <strong>p</strong> is a prime modulus, and <strong>a</strong>, <strong>b</strong> are integers. All arithmetic (additions,
+                        subtractions, multiplications, divisions) is performed modulo <strong>p</strong>. The set of points that satisfy the equation,
+                        plus a special identity element <strong>O</strong> (the “point at infinity”), forms an abelian group under a well‑defined addition rule.
+                    </p>
+
+                    <h3 style="color:#e6e6e6; margin-top:16px;">Key Concepts</h3>
+                    <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
+                        <li><strong>Valid curve:</strong> The discriminant <code>Δ = 4a³ + 27b² (mod p)</code> must be non‑zero to avoid singularities.</li>
+                        <li><strong>Point at infinity (O):</strong> Acts as the identity element: <code>P + O = P</code>.</li>
+                        <li><strong>Negation:</strong> For a point <code>P = (x, y)</code>, its inverse is <code>-P = (x, -y mod p)</code>.</li>
+                        <li><strong>Point addition:</strong> The line through <code>P</code> and <code>Q</code> intersects the curve at a third point; reflect it across the x‑axis to get <code>P + Q</code>. In finite fields, the “line” is an algebraic relation handled with modular arithmetic.</li>
+                        <li><strong>Point doubling:</strong> When <code>P = Q</code>, use the tangent at <code>P</code> to compute <code>2P</code>.</li>
+                        <li><strong>Scalar multiplication:</strong> Repeated addition, efficiently computed via the double‑and‑add method.</li>
+                    </ul>
+
+                    <h3 style="color:#e6e6e6; margin-top:16px;">How to Use This App</h3>
+                    <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
+                        <li><strong>Initialization:</strong> Pick <code>a</code>, <code>b</code>, and a prime <code>p</code>, then click “Find All Points on Curve”. The list below shows every point (including <code>O</code>).</li>
+                        <li><strong>Visualization:</strong> The canvases plot all points with axes from <code>0</code> to <code>p−1</code> on both x and y. Use the “Show point labels” toggle to annotate points.</li>
+                        <li><strong>Point Addition:</strong> Choose <code>P</code> and <code>Q</code> to compute <code>P + Q</code>. The result is highlighted on the plot.</li>
+                        <li><strong>Scalar Multiplication:</strong> Choose a point <code>P</code> and scalar <code>k</code>. Step through each intermediate multiple with the controls and slider.</li>
+                    </ul>
+
+                    <h3 style="color:#e6e6e6; margin-top:16px;">Tips and Notes</h3>
+                    <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
+                        <li>Choose moderate primes (for example, <code>p ≈ 50–200</code>) to keep the plots readable while still showing structure.</li>
+                        <li>If <code>Δ = 0</code> for your parameters, pick a different <code>a</code> and <code>b</code> so the curve is non‑singular.</li>
+                        <li>The “Show point labels” option is off by default to reduce clutter. Turn it on when you need exact coordinates.</li>
+                        <li>All points are plotted in a grid of integers; there are no fractional coordinates in this finite‑field setting.</li>
+                    </ul>
+
+                    <h3 style="color:#e6e6e6; margin-top:16px;">Why Elliptic Curves?</h3>
+                    <p style="margin: 8px 0; color:#ccc;">
+                        Elliptic‑curve groups enable compact, efficient public‑key operations such as key exchange and digital signatures.
+                        Over finite fields, their algebraic structure provides strong security per bit of key size and underpins many modern protocols.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Real Curve (ℝ) Tab -->
+            <div id="realTab" class="tab-pane">
+                <div class="panel full-width">
+                    <h2>Curve over ℝ</h2>
+                    <div class="math-formula">y² = x³ + ax + b</div>
+                    <div class="subtabs">
+                        <button class="subtab-btn active" data-subtab="realInitPane" onclick="switchSubtab('real','realInitPane')">Initialization</button>
+                        <button class="subtab-btn" data-subtab="realAddPane" onclick="switchSubtab('real','realAddPane')">Point Addition</button>
+                        <button class="subtab-btn" data-subtab="realMulPane" onclick="switchSubtab('real','realMulPane')">Scalar Multiplication</button>
+                    </div>
+                </div>
+
+                <div id="realInitPane" class="subtab-pane active">
+                    <div class="panel">
+                        <h2>Define Curve</h2>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="realParamA">a</label>
+                                    <input type="number" step="any" id="realParamA" value="-1" placeholder="a">
+                                </div>
+                                <div>
+                                    <label for="realParamB">b</label>
+                                    <input type="number" step="any" id="realParamB" value="1" placeholder="b">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="realRangeMin">Range (x,y)</label>
+                                    <div class="range-inline" aria-label="Real curve axis range">
+                                        <span class="token">x,y ∈ [</span>
+                                        <input class="range-input" type="number" step="any" id="realRangeMin" value="-10" placeholder="min">
+                                        <span class="token">,</span>
+                                        <input class="range-input" type="number" step="any" id="realRangeMax" value="10" placeholder="max">
+                                        <span class="token">]</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="initRealCurve()">Initialize Curve</button>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Smooth curve plot over real numbers</p>
+                        <canvas id="realCurveCanvas" width="600" height="500"></canvas>
+                        <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
+                            <input id="realShowLabels" type="checkbox" checked onchange="redrawRealCanvases()"> Show point labels
+                        </label>
+                    </div>
+                </div>
+
+                <div id="realAddPane" class="subtab-pane">
+                    <div class="panel">
+                        <h2>Point Addition (ℝ)</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Geometric chord/tangent visualization</p>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="realP1X">P.x</label>
+                                    <input type="number" step="any" id="realP1X" placeholder="x₁">
+                                </div>
+                                <div>
+                                    <label for="realP1Y">P.y</label>
+                                    <input type="number" step="any" id="realP1Y" placeholder="y₁">
+                                </div>
+                                <div>
+                                    <label for="realSelectMode">Pick Mode</label>
+                                    <select id="realSelectMode">
+                                        <option value="P">Select P</option>
+                                        <option value="Q">Select Q</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="realP2X">Q.x</label>
+                                    <input type="number" step="any" id="realP2X" placeholder="x₂">
+                                </div>
+                                <div>
+                                    <label for="realP2Y">Q.y</label>
+                                    <input type="number" step="any" id="realP2Y" placeholder="y₂">
+                                </div>
+                                <div>
+                                    <label>&nbsp;</label>
+                                    <button onclick="addPointsReal()">Calculate P + Q</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="realAdditionResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Click on the curve to set P or Q</p>
+                        <canvas id="realAdditionCanvas" width="600" height="500"></canvas>
+                        <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
+                            <input id="realAdditionShowLabels" type="checkbox" checked onchange="drawRealAdditionScene()"> Show point labels
+                        </label>
+                    </div>
+                </div>
+
+                <div id="realMulPane" class="subtab-pane">
+                    <div class="panel">
+                        <h2>Scalar Multiplication (ℝ)</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Follow k × P along the curve</p>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="realK">k</label>
+                                    <input type="number" id="realK" value="3" placeholder="k">
+                                </div>
+                                <div>
+                                    <label for="realMulPX">P.x</label>
+                                    <input type="number" step="any" id="realMulPX" placeholder="x">
+                                </div>
+                                <div>
+                                    <label for="realMulPY">P.y</label>
+                                    <input type="number" step="any" id="realMulPY" placeholder="y">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="scalarMultiplyReal()">Calculate k × P</button>
+                        <div id="realScalarResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Visualization</p>
+                        <canvas id="realMultiplicationCanvas" width="600" height="500"></canvas>
+                        <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
+                            <input id="realMultiplicationShowLabels" type="checkbox" checked onchange="renderRealScalarAll()"> Show point labels
+                        </label>
+                        <div id="realAnimControls" class="anim-controls" style="display:none;"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Curve over Fp Tab -->
+            <div id="fpTab" class="tab-pane active">
+                <div class="panel full-width">
+                    <h2>Curve over Fp</h2>
+                    <div class="math-formula">y² = x³ + ax + b (mod p)</div>
+                    <div class="subtabs" style="margin-top:10px;">
+                        <button class="subtab-btn active" data-subtab="fpInitPane" onclick="switchSubtab('fp','fpInitPane')">Initialization</button>
+                        <button class="subtab-btn" data-subtab="fpAddPane" onclick="switchSubtab('fp','fpAddPane')">Point Addition</button>
+                        <button class="subtab-btn" data-subtab="fpMulPane" onclick="switchSubtab('fp','fpMulPane')">Scalar Multiplication</button>
+                    </div>
+                </div>
+
+                <div id="fpInitPane" class="subtab-pane active">
+                    <div class="panel">
+                        <h2>Define Curve</h2>
+                        <div class="form-group">
+                            <label for="curvePreset">Preset Curves</label>
+                            <select id="curvePreset" onchange="loadCurvePreset(this.value)">
+                                <option value="custom">Custom</option>
+                                <optgroup label="Famous Curves (Simplified)">
+                                    <option value="secp256k1">secp256k1-like (Bitcoin)</option>
+                                    <option value="p256">P-256-like (NIST)</option>
+                                </optgroup>
+                                <optgroup label="Small Examples">
+                                    <option value="e23">E₂₃(1,1) - Tiny example</option>
+                                    <option value="e31">E₃₁(2,3) - Small example</option>
+                                    <option value="e47">E₄₇(5,7) - Medium example</option>
+                                    <option value="e97" selected>E₉₇(2,3) - Default</option>
+                                    <option value="e127">E₁₂₇(1,2) - Larger example</option>
+                                </optgroup>
+                            </select>
+                            <small id="curveDescription" class="curve-description"></small>
+                        </div>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="paramA">a</label>
+                                    <input type="number" id="paramA" value="2" placeholder="a">
+                                </div>
+                                <div>
+                                    <label for="paramB">b</label>
+                                    <input type="number" id="paramB" value="3" placeholder="b">
+                                </div>
+                                <div>
+                                    <label for="paramP">p (prime)</label>
+                                    <input type="number" id="paramP" value="97" placeholder="p">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="findAllPoints()">Find All Points on Curve</button>
+                    </div>
+                    <div class="panel">
+                        <h2>Points</h2>
+                        <div id="curveInfo"></div>
+                        <div id="pointsList"></div>
+                    </div>
+                </div>
+
+                <div id="fpAddPane" class="subtab-pane">
+                    <div class="panel">
+                        <h2>Point Addition</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Add two points: P + Q = R</p>
+                        <div class="form-group">
+                            <label for="point1Select">Point P</label>
+                            <select id="point1Select"><option value="">Select Point P</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="point2Select">Point Q</label>
+                            <select id="point2Select"><option value="">Select Point Q</option></select>
+                        </div>
+                        <button onclick="addPoints()">Calculate P + Q</button>
+                        <div id="additionResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Points on the elliptic curve (mod p)</p>
+                        <canvas id="additionCanvas" width="600" height="500"></canvas>
+                        <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
+                            <input id="additionShowLabels" type="checkbox" checked onchange="redrawAdditionCanvas()"> Show point labels
+                        </label>
+                        <div id="additionPointInfo" class="point-info" aria-live="polite"></div>
+                    </div>
+                </div>
+
+                <div id="fpMulPane" class="subtab-pane">
+                    <div class="panel">
+                        <h2>Scalar Multiplication</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Multiply a point by a scalar: k × P</p>
+                        <div class="form-group">
+                            <label for="scalarPointSelect">Point P</label>
+                            <select id="scalarPointSelect"><option value="">Select Point P</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="scalarValue">Scalar k</label>
+                            <input type="number" id="scalarValue" value="3" placeholder="k">
+                        </div>
+                        <button onclick="scalarMultiply()">Calculate k × P</button>
+                        <div id="scalarResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Visualization</p>
+                        <canvas id="multiplicationCanvas" width="600" height="500"></canvas>
+                        <label style="display:block; margin-top:8px; color:#aaa; font-size:0.95em;">
+                            <input id="multiplicationShowLabels" type="checkbox" checked onchange="renderFpScalarAll()"> Show point labels
+                        </label>
+                        <div id="multiplicationPointInfo" class="point-info" aria-live="polite"></div>
+                        <div id="animationControls" class="anim-controls" style="display:none;">
+                            <button id="prevStepBtn" onclick="prevScalarStep()" disabled>Prev</button>
+                            <button id="playPauseBtn" onclick="toggleScalarAnimation()" disabled>Play</button>
+                            <input id="stepSlider" type="range" min="0" max="0" value="0" disabled oninput="onScalarSlider(this.value)">
+                            <button id="nextStepBtn" onclick="nextScalarStep()" disabled>Next</button>
+                            <span id="stepLabel" class="step-label">0/0</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+            <script src="{{ url_for('static', filename='js/calculator.js') }}"></script>
+
+</html>
