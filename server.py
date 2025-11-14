@@ -4,6 +4,7 @@ Imports elliptic_curve.py and provides API endpoints
 """
 
 from flask import Flask, render_template, request, jsonify, session
+import base64
 from elliptic_curve import EllipticCurve, RealEllipticCurve
 import secrets
 import os
@@ -866,7 +867,9 @@ def api_encrypt():
     """Encrypt a message using elliptic curve cryptography"""
     try:
         data = request.get_json()
-        plaintext = data['plaintext']
+        plaintext = data.get('plaintext', '')
+        file_data_b64 = data.get('file_data')
+        file_name = data.get('file_name')
 
         # Get encryption parameters from session
         enc_params = session.get('encryption_params')
@@ -892,8 +895,21 @@ def api_encrypt():
         # Use x-coordinate of S as encryption key
         shared_secret = S[0] if S[0] is not None else 0
 
+        payload_bytes = plaintext.encode('utf-8')
+        payload_type = 'text'
+        payload_label = 'text message'
+        if file_data_b64:
+            try:
+                payload_bytes = base64.b64decode(file_data_b64)
+            except Exception:
+                return jsonify({'success': False, 'error': 'Invalid file data'}), 400
+            payload_type = 'file'
+            if file_name:
+                payload_label = f'file: {file_name}'
+            else:
+                payload_label = 'uploaded file'
+
         # Simple XOR encryption with the shared secret
-        # Convert message to bytes and encrypt each byte
         encrypted_bytes = []
         steps = []
 
@@ -906,18 +922,19 @@ def api_encrypt():
         steps.append(f"Step 4: Extract encryption key from S.x = {shared_secret}")
         steps.append(f"Step 5: Encrypt message using XOR with derived key")
 
-        # Create a pseudo-random stream from the shared secret
-        for i, char in enumerate(plaintext):
-            byte_val = ord(char)
-            # Use shared_secret with position to create encryption key
+        for i, byte_val in enumerate(payload_bytes):
             key_byte = (shared_secret + i) % 256
             encrypted_byte = byte_val ^ key_byte
             encrypted_bytes.append(encrypted_byte)
-            if i < 3:  # Show first 3 for brevity
-                steps.append(f"       '{char}' (ASCII {byte_val}) XOR {key_byte} = {encrypted_byte}")
+            if i < 3:
+                if payload_type == 'text' and 32 <= byte_val <= 126:
+                    char_display = f"'{chr(byte_val)}' (ASCII {byte_val})"
+                else:
+                    char_display = f"byte {byte_val}"
+                steps.append(f"       {char_display} XOR {key_byte} = {encrypted_byte}")
 
-        if len(plaintext) > 3:
-            steps.append(f"       ... ({len(plaintext) - 3} more characters)")
+        if len(payload_bytes) > 3:
+            steps.append(f"       ... ({len(payload_bytes) - 3} more bytes)")
 
         # Format result
         result = {
@@ -929,13 +946,16 @@ def api_encrypt():
 
         user = get_current_user()
         if user:
-            save_history(user['id'], 'Encrypt Message', f'Encrypted {len(plaintext)} characters')
+            save_history(user['id'], 'Encrypt Message', f'Encrypted {len(payload_bytes)} bytes ({payload_label})')
 
         return jsonify({
             'success': True,
             'ciphertext': result,
             'steps': steps,
-            'plaintext_length': len(plaintext)
+            'payload_length': len(payload_bytes),
+            'payload_type': payload_type,
+            'payload_label': payload_label,
+            'file_name': file_name
         })
 
     except Exception as e:

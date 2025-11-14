@@ -159,9 +159,7 @@
                         <span class="dropdown-arrow">▼</span>
                     </button>
                     <div class="curve-dropdown-menu">
-                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('encryptInitPane')">Initialization</div>
-                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('encryptPane')">Encryption</div>
-                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('decryptPane')">Decryption</div>
+                        <div class="curve-dropdown-item active" onclick="selectEncryptionPane('encryptInitPane', event)">Initialization</div>
                     </div>
                 </div>
             </div>
@@ -545,8 +543,14 @@
                             <label for="plaintextInput">Message to Encrypt</label>
                             <textarea id="plaintextInput" rows="4" placeholder="Enter your message here..."></textarea>
                         </div>
+                        <div class="form-group">
+                            <label for="encryptionFileInput">Or upload a file</label>
+                            <input type="file" id="encryptionFileInput">
+                            <small style="color:#aaa;">File bytes will be encrypted instead of the text above.</small>
+                        </div>
                         <button onclick="encryptMessage()">Encrypt</button>
                         <div id="encryptionResult"></div>
+                        <div id="encryptionStepsDisplay" class="steps-display"></div>
                     </div>
                     <div class="panel">
                         <h2>Encryption Visualization</h2>
@@ -556,14 +560,6 @@
                             <button id="encryptionToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('encryption')" data-visible="true">
                                 Hide steps
                             </button>
-                        </div>
-                        <div id="encryptionStepsDisplay" class="steps-display"></div>
-                        <div id="encryptionAnimControls" class="anim-controls" style="display:none;">
-                            <button id="encryptPrevBtn" onclick="prevEncryptionStep()" disabled>Prev</button>
-                            <button id="encryptPlayBtn" onclick="toggleEncryptionAnimation()" disabled>Play</button>
-                            <input id="encryptStepSlider" type="range" min="0" max="0" value="0" disabled oninput="onEncryptionSlider(this.value)">
-                            <button id="encryptNextBtn" onclick="nextEncryptionStep()" disabled>Next</button>
-                            <span id="encryptStepLabel" class="step-label">0/0</span>
                         </div>
                     </div>
                 </div>
@@ -577,8 +573,14 @@
                             <label for="ciphertextInput">Ciphertext (JSON format)</label>
                             <textarea id="ciphertextInput" rows="6" placeholder='{"R": {"x": ..., "y": ...}, "encrypted": [...], "iv": ...}'></textarea>
                         </div>
+                        <div class="form-group">
+                            <label for="decryptionFileInput">Or upload ciphertext file</label>
+                            <input type="file" id="decryptionFileInput" accept=".json,application/json">
+                            <small style="color:#aaa;">Only JSON ciphertext files are allowed.</small>
+                        </div>
                         <button onclick="decryptMessage()">Decrypt</button>
                         <div id="decryptionResult"></div>
+                        <div id="decryptionStepsDisplay" class="steps-display"></div>
                     </div>
                     <div class="panel">
                         <h2>Decryption Visualization</h2>
@@ -589,10 +591,8 @@
                                 Hide steps
                             </button>
                         </div>
-                        <div id="decryptionStepsDisplay" class="steps-display"></div>
                     </div>
                 </div>
-            </div>
 
         </div>
     </div>

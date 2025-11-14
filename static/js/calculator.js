@@ -696,13 +696,19 @@
             switchTab(tabId);
         }
 
-        function selectEncryptionPane(paneId) {
+        function selectEncryptionPane(paneId, evt) {
             // Update active state in encryption dropdown
-            const encryptDropdown = document.getElementById('encryptionSelectorBtn').parentElement;
-            encryptDropdown.querySelectorAll('.curve-dropdown-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            event.target.classList.add('active');
+            const encryptDropdownEl = document.getElementById('encryptionSelectorBtn');
+            const encryptDropdown = encryptDropdownEl?.parentElement;
+            if (encryptDropdown) {
+                encryptDropdown.querySelectorAll('.curve-dropdown-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                const targetItem = evt?.target;
+                if (targetItem) {
+                    targetItem.classList.add('active');
+                }
+            }
 
             // Switch to encryption tab
             document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
@@ -763,6 +769,22 @@
             const ctx = canvas.getContext('2d', { alpha: false });
             // Work in CSS pixels
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // Add roundRect polyfill if not supported
+            if (!ctx.roundRect) {
+                ctx.roundRect = function(x, y, w, h, r) {
+                    if (w < 2 * r) r = w / 2;
+                    if (h < 2 * r) r = h / 2;
+                    this.beginPath();
+                    this.moveTo(x + r, y);
+                    this.arcTo(x + w, y, x + w, y + h, r);
+                    this.arcTo(x + w, y + h, x, y + h, r);
+                    this.arcTo(x, y + h, x, y, r);
+                    this.arcTo(x, y, x + w, y, r);
+                    this.closePath();
+                    return this;
+                };
+            }
 
             return { ctx, cssWidth, cssHeight, dpr };
         }
@@ -3448,8 +3470,70 @@
             currentCiphertext: null,
             animationSteps: [],
             currentStep: 0,
-            animationTimer: null
+            animationTimer: null,
+            // Animation state
+            animationTime: 0,
+            animationFrame: null,
+            particles: [],
+            isAnimating: false,
+            currentAnimationStep: 0,
+            stepProgress: 0,
+            dashOffset: 0
         };
+
+        // Particle class for animations
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 3;
+                this.vy = (Math.random() - 0.5) * 3;
+                this.alpha = 1;
+                this.decay = 0.015 + Math.random() * 0.015;
+                this.color = color;
+                this.size = 2 + Math.random() * 3;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.alpha <= 0;
+            }
+        }
+
+        // Create particles at a point
+        function createParticles(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                encryptionState.particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // Update and draw particles
+        function updateParticles(ctx) {
+            encryptionState.particles = encryptionState.particles.filter(p => {
+                p.update();
+                p.draw(ctx);
+                return !p.isDead();
+            });
+        }
 
         function loadEncryptionPreset(presetKey) {
             const descEl = document.getElementById('encryptionCurveDesc');
@@ -3526,18 +3610,38 @@
             }
 
             const plaintext = document.getElementById('plaintextInput').value;
-            if (!plaintext) {
-                showToast('Please enter a message to encrypt', 'error');
+            const fileInput = document.getElementById('encryptionFileInput');
+            const file = fileInput?.files?.[0];
+
+            if (!plaintext && !file) {
+                showToast('Please enter a message or upload a file to encrypt', 'error');
                 return;
             }
 
             showLoading('Encrypting message...');
 
             try {
+                let payload = { plaintext };
+                if (file) {
+                    let fileData;
+                    try {
+                        fileData = await readFileAsBase64(file);
+                    } catch (readError) {
+                        hideLoading();
+                        showToast('Failed to read uploaded file', 'error');
+                        console.error(readError);
+                        return;
+                    }
+                    payload = {
+                        file_name: file.name,
+                        file_data: fileData
+                    };
+                }
+
                 const response = await fetch('/api/encryption/encrypt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plaintext })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -3547,19 +3651,25 @@
                     encryptionState.currentCiphertext = data.ciphertext;
                     encryptionState.animationSteps = data.steps;
 
-                    // Display result
+                    const payloadLength = data.payload_length || 0;
+                    const detailHtml = data.payload_type === 'file'
+                        ? '<p><strong>File:</strong> ' + (data.file_name || data.payload_label || 'Uploaded file') + '</p>'
+                        : '<p><strong>Original:</strong> "' + plaintext + '"</p>';
+
                     const resultDiv = document.getElementById('encryptionResult');
                     const ctJson = JSON.stringify(data.ciphertext, null, 2);
-                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Encrypted</h3><p><strong>Original:</strong> "' + plaintext + '"</p><p><strong>Length:</strong> ' + data.plaintext_length + ' characters</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h4>Ciphertext:</h4><textarea readonly rows="6" style="width: 100%; font-family: monospace; font-size: 0.85em;">' + ctJson + '</textarea><button onclick="copyCiphertextToDecrypt()" style="margin-top: 10px;">Copy to Decrypt Tab</button></div>';
+                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Encrypted</h3>' + detailHtml + '<p><strong>Length:</strong> ' + payloadLength + ' bytes</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h4>Ciphertext:</h4><textarea readonly rows="6" style="width: 100%; font-family: monospace; font-size: 0.85em;">' + ctJson + '</textarea><button onclick="copyCiphertextToDecrypt()" style="margin-top: 10px;">Copy to Decrypt Tab</button></div>';
 
-                    // Display steps
+                    document.getElementById('encryptionStepsDisplay').innerHTML = '';
                     displayEncryptionSteps(data.steps);
 
-                    // Draw visualization
                     drawEncryptionVisualization(data.ciphertext);
 
-                    // Enable animation controls
                     enableEncryptionAnimationControls(data.steps.length);
+
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
 
                     showToast('Message encrypted successfully!', 'success');
                 } else {
@@ -3572,23 +3682,98 @@
             }
         }
 
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    if (!reader.result) {
+                        reject(new Error('Empty file data'));
+                        return;
+                    }
+                    const text = reader.result;
+                    const commaIndex = text.indexOf(',');
+                    resolve(commaIndex >= 0 ? text.slice(commaIndex + 1) : text);
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    if (typeof reader.result !== 'string') {
+                        reject(new Error('File reader did not return text'));
+                        return;
+                    }
+                    resolve(reader.result);
+                };
+                reader.onerror = () => reject(reader.error);
+                reader.readAsText(file);
+            });
+        }
+
+        function isJsonFile(file) {
+            if (!file) return false;
+            const mime = (file.type || '').toLowerCase();
+            const name = (file.name || '').toLowerCase();
+            return mime.includes('json') || name.endsWith('.json');
+        }
+
+        function isValidCiphertextObject(obj) {
+            if (!obj || typeof obj !== 'object') return false;
+            if (!obj.R || typeof obj.R !== 'object') return false;
+            if (!('x' in obj.R) || !('y' in obj.R)) return false;
+            if (!Array.isArray(obj.encrypted)) return false;
+            if (obj.encrypted.some(byte => typeof byte !== 'number')) return false;
+            return true;
+        }
+
         async function decryptMessage() {
             if (!encryptionState.initialized) {
                 showToast('Please initialize the encryption system first', 'error');
                 return;
             }
 
-            const ciphertextInput = document.getElementById('ciphertextInput').value;
-            if (!ciphertextInput) {
+            const ciphertextField = document.getElementById('ciphertextInput');
+            const fileInput = document.getElementById('decryptionFileInput');
+            const file = fileInput?.files?.[0];
+            let ciphertextText = '';
+
+            if (file) {
+                if (!isJsonFile(file)) {
+                    showToast('Please upload a JSON ciphertext file', 'error');
+                    return;
+                }
+                try {
+                    ciphertextText = await readFileAsText(file);
+                } catch (readError) {
+                    showToast('Failed to read uploaded file', 'error');
+                    console.error(readError);
+                    return;
+                }
+                if (ciphertextField) {
+                    ciphertextField.value = ciphertextText;
+                }
+            } else {
+                ciphertextText = ciphertextField?.value || '';
+            }
+
+            if (!ciphertextText) {
                 showToast('Please enter ciphertext to decrypt', 'error');
                 return;
             }
 
             let ciphertext;
             try {
-                ciphertext = JSON.parse(ciphertextInput);
+                ciphertext = JSON.parse(ciphertextText);
             } catch (e) {
                 showToast('Invalid JSON format', 'error');
+                return;
+            }
+            if (!isValidCiphertextObject(ciphertext)) {
+                showToast('Ciphertext format is wrong', 'error');
                 return;
             }
 
@@ -3614,6 +3799,10 @@
 
                     // Draw visualization
                     drawDecryptionVisualization(ciphertext, data.shared_secret_point);
+
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
 
                     showToast('Message decrypted successfully!', 'success');
                 } else {
@@ -3657,78 +3846,242 @@
             const canvas = document.getElementById('encryptionCanvas');
             if (!canvas) return;
 
-            const canvasData = setupCanvas(canvas);
-            if (!canvasData) return;
-            const { ctx, cssWidth, cssHeight } = canvasData;
+            // Stop any existing animation
+            if (encryptionState.animationFrame) {
+                cancelAnimationFrame(encryptionState.animationFrame);
+            }
 
-            const { a, b, p } = encryptionState.curve;
-            const G = encryptionState.generator;
-            const Q = encryptionState.publicKey;
-            const R = ciphertext.R;
-            const S = ciphertext.shared_secret_point;
+            // Initialize animation
+            encryptionState.isAnimating = true;
+            encryptionState.animationTime = 0;
+            encryptionState.dashOffset = 0;
+            encryptionState.currentAnimationStep = 0;
+            encryptionState.particles = [];
 
-            // Clear canvas
-            clearCanvas(ctx, cssWidth, cssHeight);
+            function animate() {
+                const canvasData = setupCanvas(canvas);
+                if (!canvasData) return;
+                const { ctx, cssWidth, cssHeight } = canvasData;
 
-            // Draw grid and axes
-            drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+                const { a, b, p } = encryptionState.curve;
+                const G = encryptionState.generator;
+                const Q = encryptionState.publicKey;
+                const R = ciphertext.R;
+                const S = ciphertext.shared_secret_point;
 
-            // Draw all curve points in background
-            drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
+                // Update animation time
+                encryptionState.animationTime += 0.016; // ~60fps
+                encryptionState.dashOffset = (encryptionState.dashOffset + 0.5) % 14;
 
-            // Highlight important points with glow effect
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)');
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)');
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)');
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)');
+                // Clear canvas
+                clearCanvas(ctx, cssWidth, cssHeight);
 
-            // Draw connections with labels
-            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b');
-            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7');
+                // Draw grid and axes
+                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
 
-            // Draw legend
-            drawEncryptionLegend(ctx, cssWidth, cssHeight, ciphertext.k);
+                // Draw all curve points in background
+                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
+
+                // Calculate animation progress
+                const time = encryptionState.animationTime;
+
+                // Step 1: Show G (0-1s)
+                if (time <= 5) {
+                    if (time > 0) {
+                        const alpha = Math.min(1, time);
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
+                        ctx.restore();
+                    }
+
+                    // Step 2: Show Q (1-2s)
+                    if (time > 1) {
+                        const alpha = Math.min(1, time - 1);
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
+                        ctx.restore();
+                    }
+
+                    // Step 3: Animate G -> R connection and show R (2-3.5s)
+                    if (time > 2) {
+                        const progress = Math.min(1, (time - 2) / 1.5);
+                        ctx.save();
+                        ctx.globalAlpha = progress;
+                        drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b', progress);
+                        ctx.restore();
+
+                        if (progress > 0.5) {
+                            const pointAlpha = Math.min(1, (progress - 0.5) * 2);
+                            ctx.save();
+                            ctx.globalAlpha = pointAlpha;
+                            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)', time);
+                            ctx.restore();
+                        }
+                    }
+
+                    // Step 4: Animate Q -> S connection and show S (3.5-5s)
+                    if (time > 3.5) {
+                        const progress = Math.min(1, (time - 3.5) / 1.5);
+                        ctx.save();
+                        ctx.globalAlpha = progress;
+                        drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7', progress);
+                        ctx.restore();
+
+                        if (progress > 0.5) {
+                            const pointAlpha = Math.min(1, (progress - 0.5) * 2);
+                            ctx.save();
+                            ctx.globalAlpha = pointAlpha;
+                            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)', time);
+                            ctx.restore();
+                        }
+                    }
+                } else {
+                    // After animation completes, show everything with pulsing
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)', time);
+
+                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b', 1);
+                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7', 1);
+                }
+
+                // Update and draw particles
+                updateParticles(ctx);
+
+                // Continue animation
+                if (encryptionState.isAnimating) {
+                    encryptionState.animationFrame = requestAnimationFrame(animate);
+                }
+            }
+
+            animate();
         }
 
         function drawDecryptionVisualization(ciphertext, sharedSecret) {
             const canvas = document.getElementById('decryptionCanvas');
             if (!canvas) return;
 
-            const canvasData = setupCanvas(canvas);
-            if (!canvasData) return;
-            const { ctx, cssWidth, cssHeight } = canvasData;
+            // Stop any existing animation
+            if (encryptionState.animationFrame) {
+                cancelAnimationFrame(encryptionState.animationFrame);
+            }
 
-            const { a, b, p } = encryptionState.curve;
-            const R = ciphertext.R;
-            const S = sharedSecret;
-            const Q = encryptionState.publicKey;
-            const G = encryptionState.generator;
+            // Initialize animation
+            encryptionState.isAnimating = true;
+            encryptionState.animationTime = 0;
+            encryptionState.dashOffset = 0;
+            encryptionState.particles = [];
 
-            // Clear canvas
-            clearCanvas(ctx, cssWidth, cssHeight);
+            function animate() {
+                const canvasData = setupCanvas(canvas);
+                if (!canvasData) return;
+                const { ctx, cssWidth, cssHeight } = canvasData;
 
-            // Draw grid and axes
-            drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+                const { a, b, p } = encryptionState.curve;
+                const R = ciphertext.R;
+                const S = sharedSecret;
+                const Q = encryptionState.publicKey;
+                const G = encryptionState.generator;
 
-            // Draw all curve points in background
-            drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
+                // Update animation time
+                encryptionState.animationTime += 0.016; // ~60fps
+                encryptionState.dashOffset = (encryptionState.dashOffset + 0.5) % 14;
 
-            // Show G and Q for context (dimmed)
-            ctx.save();
-            ctx.globalAlpha = 0.35;
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)');
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)');
-            ctx.restore();
+                // Clear canvas
+                clearCanvas(ctx, cssWidth, cssHeight);
 
-            // Highlight R and S (main decryption points)
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)');
-            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)');
+                // Draw grid and axes
+                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
 
-            // Draw connection showing d×R = S
-            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, R, S, '#a855f7');
+                // Draw all curve points in background
+                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
 
-            // Draw legend/info box
-            drawDecryptionLegend(ctx, cssWidth, cssHeight, encryptionState.privateKey);
+                const time = encryptionState.animationTime;
+
+                // Show G and Q for context (dimmed) - fade in
+                if (time > 0) {
+                    const alpha = Math.min(0.35, time * 0.35);
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
+                    ctx.restore();
+                }
+
+                // Step 1: Show R (0-1s)
+                if (time > 0) {
+                    const alpha = Math.min(1, time);
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)', time);
+                    ctx.restore();
+
+                    // Particle burst when R appears
+                    if (time > 0.1 && time < 0.2) {
+                        const padding = 50;
+                        const width = cssWidth - 2 * padding;
+                        const height = cssHeight - 2 * padding;
+                        const maxVal = Math.max(1, p - 1);
+                        const x = padding + (R.x / maxVal) * width;
+                        const y = cssHeight - padding - (R.y / maxVal) * height;
+                        createParticles(x, y, '#f59e0b', 20);
+                    }
+                }
+
+                // Step 2: Animate R -> S connection and show S (1-2.5s)
+                if (time > 1) {
+                    const progress = Math.min(1, (time - 1) / 1.5);
+                    ctx.save();
+                    ctx.globalAlpha = progress;
+                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, R, S, '#a855f7', progress);
+                    ctx.restore();
+
+                    if (progress > 0.5) {
+                        const pointAlpha = Math.min(1, (progress - 0.5) * 2);
+                        ctx.save();
+                        ctx.globalAlpha = pointAlpha;
+                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)', time);
+                        ctx.restore();
+
+                        // Particle burst when S appears
+                        if (time > 1.8 && time < 1.9) {
+                            const padding = 50;
+                            const width = cssWidth - 2 * padding;
+                            const height = cssHeight - 2 * padding;
+                            const maxVal = Math.max(1, p - 1);
+                            const x = padding + (S.x / maxVal) * width;
+                            const y = cssHeight - padding - (S.y / maxVal) * height;
+                            createParticles(x, y, '#a855f7', 25);
+                        }
+                    }
+                }
+
+                // After animation completes, show everything with pulsing
+                if (time > 2.5) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.35;
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
+                    ctx.restore();
+
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)', time);
+                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)', time);
+                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, R, S, '#a855f7', 1);
+                }
+
+                // Update and draw particles
+                updateParticles(ctx);
+
+                // Continue animation
+                if (encryptionState.isAnimating) {
+                    encryptionState.animationFrame = requestAnimationFrame(animate);
+                }
+            }
+
+            animate();
         }
 
         // Helper functions for encryption visualization
@@ -3819,7 +4172,7 @@
             }
         }
 
-        function drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, point, color, label) {
+        function drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, point, color, label, time = 0) {
             if (!point || point.x === null || point.y === null) return;
 
             const padding = 50;
@@ -3830,53 +4183,61 @@
             const x = padding + (point.x / maxVal) * width;
             const y = cssHeight - padding - (point.y / maxVal) * height;
 
-            // Draw outer glow
+            // Pulsing effect
+            const pulseScale = 1 + Math.sin(time * 3) * 0.15;
+            const glowIntensity = 0.2 + Math.sin(time * 3) * 0.1;
+
+            // Draw larger outer glow with pulse
             ctx.save();
             ctx.shadowColor = color;
-            ctx.shadowBlur = 20;
+            ctx.shadowBlur = 25 * pulseScale;
             ctx.fillStyle = color;
-            ctx.globalAlpha = 0.3;
+            ctx.globalAlpha = glowIntensity;
             ctx.beginPath();
-            ctx.arc(x, y, 15, 0, 2 * Math.PI);
+            ctx.arc(x, y, 18 * pulseScale, 0, 2 * Math.PI);
             ctx.fill();
             ctx.restore();
 
-            // Draw point
+            // Draw middle glow ring
+            ctx.save();
             ctx.fillStyle = color;
+            ctx.globalAlpha = 0.3;
             ctx.beginPath();
-            ctx.arc(x, y, 7, 0, 2 * Math.PI);
+            ctx.arc(x, y, 14, 0, 2 * Math.PI);
             ctx.fill();
+            ctx.restore();
 
-            // Draw outline
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
+            // Draw point with better visibility
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 20;
             ctx.beginPath();
-            ctx.arc(x, y, 9, 0, 2 * Math.PI);
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+
+            // Draw thicker outline with pulse
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, 11 * pulseScale, 0, 2 * Math.PI);
             ctx.stroke();
 
-            // Draw label with background
-            ctx.font = 'bold 13px monospace';
-            const metrics = ctx.measureText(label);
-            const labelX = x + 15;
-            const labelY = y - 15;
-
-            // Label background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.fillRect(labelX - 3, labelY - 13, metrics.width + 6, 18);
-
-            // Label text
+            // Draw label text without background
+            ctx.font = 'bold 14px Arial';
+            const labelX = x + 18;
+            const labelY = y - 18;
+            ctx.shadowBlur = 0;
             ctx.fillStyle = color;
             ctx.fillText(label, labelX, labelY);
 
-            // Point coordinates below
+            // Point coordinates below without background
             const coordText = `(${point.x}, ${point.y})`;
-            ctx.font = '10px monospace';
-            const coordMetrics = ctx.measureText(coordText);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.fillRect(x - coordMetrics.width/2 - 3, y + 12, coordMetrics.width + 6, 14);
-            ctx.fillStyle = '#ccc';
+            ctx.font = '11px monospace';
+            ctx.fillStyle = '#e5e7eb';
             ctx.textAlign = 'center';
-            ctx.fillText(coordText, x, y + 22);
+            ctx.fillText(coordText, x, y + 26);
             ctx.textAlign = 'left';
         }
 
@@ -3923,112 +4284,92 @@
             ctx.restore();
         }
 
-        function drawEncryptionLegend(ctx, cssWidth, cssHeight, ephemeralKey) {
-            // Draw info box explaining encryption
-            const boxX = 10;
-            const boxY = 10;
-            const boxWidth = 280;
-            const boxHeight = 140;
+        function drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, point1, point2, color, progress) {
+            if (!point1 || !point2 || point1.x === null || point2.x === null) return;
 
-            // Background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
 
-            // Border
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            const x1 = padding + (point1.x / maxVal) * width;
+            const y1 = cssHeight - padding - (point1.y / maxVal) * height;
+            const x2 = padding + (point2.x / maxVal) * width;
+            const y2 = cssHeight - padding - (point2.y / maxVal) * height;
 
-            // Title
-            ctx.fillStyle = '#f59e0b';
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('Encryption Process', boxX + 10, boxY + 20);
+            // Animate line drawing from point1 to point2
+            const currentX2 = x1 + (x2 - x1) * progress;
+            const currentY2 = y1 + (y2 - y1) * progress;
 
-            // Content
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            let yPos = boxY + 40;
+            // Draw glowing line
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = -encryptionState.dashOffset;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(currentX2, currentY2);
+            ctx.stroke();
+            ctx.restore();
 
-            ctx.fillText('1. Generate random k = ' + ephemeralKey, boxX + 10, yPos);
-            yPos += 18;
+            // Draw thinner inner line
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = -encryptionState.dashOffset;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(currentX2, currentY2);
+            ctx.stroke();
+            ctx.restore();
 
-            ctx.fillText('2. Compute R = k × G', boxX + 10, yPos);
-            yPos += 18;
+            // Draw arrow at current endpoint
+            if (progress > 0.3) {
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                ctx.save();
+                ctx.translate(currentX2, currentY2);
+                ctx.rotate(angle);
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-5, -7);
+                ctx.lineTo(-5, 7);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
 
-            ctx.fillText('3. Compute S = k × Q', boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('4. Extract shared secret', boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('5. Encrypt using XOR', boxX + 10, yPos);
-
-            // Note
-            ctx.fillStyle = '#10b981';
-            ctx.font = '10px monospace';
-            yPos += 20;
-            ctx.fillText('Send R + encrypted data', boxX + 10, yPos);
-        }
-
-        function drawDecryptionLegend(ctx, cssWidth, cssHeight, privateKey) {
-            // Draw info box explaining decryption
-            const boxX = 10;
-            const boxY = 10;
-            const boxWidth = 280;
-            const boxHeight = 140;
-
-            // Background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-
-            // Border
-            ctx.strokeStyle = '#a855f7';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-
-            // Title
-            ctx.fillStyle = '#a855f7';
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('Decryption Process', boxX + 10, boxY + 20);
-
-            // Content
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            let yPos = boxY + 40;
-
-            ctx.fillText('1. Receive R from ciphertext', boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('2. Use private key d = ' + privateKey, boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('3. Compute S = d × R', boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('4. Extract shared secret', boxX + 10, yPos);
-            yPos += 18;
-
-            ctx.fillText('5. Decrypt using XOR', boxX + 10, yPos);
-
-            // Note
-            ctx.fillStyle = '#fbbf24';
-            ctx.font = '10px monospace';
-            yPos += 20;
-            ctx.fillText('Note: S is same as encryption!', boxX + 10, yPos);
+                // Create particles along the line
+                if (progress < 1 && Math.random() < 0.3) {
+                    createParticles(currentX2, currentY2, color, 3);
+                }
+            }
         }
 
         function enableEncryptionAnimationControls(numSteps) {
             const controlsDiv = document.getElementById('encryptionAnimControls');
+            if (!controlsDiv) return;
             controlsDiv.style.display = 'flex';
 
             const slider = document.getElementById('encryptStepSlider');
-            slider.max = numSteps - 1;
-            slider.value = 0;
-            slider.disabled = false;
+            if (slider) {
+                slider.max = numSteps - 1;
+                slider.value = 0;
+                slider.disabled = false;
+            }
 
-            document.getElementById('encryptPrevBtn').disabled = false;
-            document.getElementById('encryptPlayBtn').disabled = false;
-            document.getElementById('encryptNextBtn').disabled = false;
+            const prevBtn = document.getElementById('encryptPrevBtn');
+            if (prevBtn) prevBtn.disabled = false;
+            const playBtn = document.getElementById('encryptPlayBtn');
+            if (playBtn) playBtn.disabled = false;
+            const nextBtn = document.getElementById('encryptNextBtn');
+            if (nextBtn) nextBtn.disabled = false;
 
             encryptionState.currentStep = 0;
             updateEncryptionStepLabel();
@@ -4050,6 +4391,7 @@
 
         function toggleEncryptionAnimation() {
             const btn = document.getElementById('encryptPlayBtn');
+            if (!btn) return;
             if (encryptionState.animationTimer) {
                 clearInterval(encryptionState.animationTimer);
                 encryptionState.animationTimer = null;
@@ -4074,7 +4416,10 @@
         }
 
         function updateEncryptionStepDisplay() {
-            document.getElementById('encryptStepSlider').value = encryptionState.currentStep;
+            const slider = document.getElementById('encryptStepSlider');
+            if (slider) {
+                slider.value = encryptionState.currentStep;
+            }
             updateEncryptionStepLabel();
 
             // Highlight current step
@@ -4089,6 +4434,7 @@
 
         function updateEncryptionStepLabel() {
             const label = document.getElementById('encryptStepLabel');
+            if (!label) return;
             label.textContent = (encryptionState.currentStep + 1) + '/' + encryptionState.animationSteps.length;
         }
 
