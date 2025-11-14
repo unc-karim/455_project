@@ -2104,7 +2104,20 @@
                     redrawAdditionCanvas();
                 }
             } else if (canvas.id === 'multiplicationCanvas') {
+                // Only update selection for highlighting, don't clear results
+                // unless user hasn't done a multiplication yet
                 selectedMultiplicationIndex = idx;
+
+                // If clicking on a different point than what was used for scalar mult,
+                // clear the scalar multiplication results
+                const pointSel = document.getElementById('scalarPointSelect');
+                if (pointSel && idx !== null && parseInt(pointSel.value) !== idx) {
+                    fpScalarPoints = [];
+                    scalarSteps = [];
+                    const resultDiv = document.getElementById('scalarResult');
+                    if (resultDiv) resultDiv.innerHTML = '';
+                }
+
                 renderFpScalarAll();
             }
         }
@@ -2541,6 +2554,13 @@
             const py = document.getElementById('realMulPY');
             if (px) px.value = x;
             if (py) py.value = pickY;
+
+            // Clear previous scalar multiplication results
+            realScalarPoints = [];
+            realScalarSteps = [];
+            realCurrentStep = 0;
+            const resultDiv = document.getElementById('realScalarResult');
+            if (resultDiv) resultDiv.innerHTML = '';
 
             // Preview on the multiplication canvas
             visualizeRealScalarStep(0);
@@ -3851,108 +3871,139 @@
                 cancelAnimationFrame(encryptionState.animationFrame);
             }
 
-            // Initialize animation
+            // Get k value from ciphertext
+            const k = ciphertext.k;
+            const { a, b, p } = encryptionState.curve;
+            const G = encryptionState.generator;
+            const Q = encryptionState.publicKey;
+
+            // Compute intermediate steps for R = k × G
+            const stepsR = [];
+            let currentPoint = { x: null, y: null };
+            for (let i = 1; i <= k; i++) {
+                currentPoint = addPointsOnCurve(currentPoint, G, a, b, p);
+                stepsR.push({ ...currentPoint });
+            }
+
+            // Compute intermediate steps for S = k × Q
+            const stepsS = [];
+            currentPoint = { x: null, y: null };
+            for (let i = 1; i <= k; i++) {
+                currentPoint = addPointsOnCurve(currentPoint, Q, a, b, p);
+                stepsS.push({ ...currentPoint });
+            }
+
+            // Select key steps to show (max 5 steps to keep it simple)
+            const maxDisplaySteps = 5;
+            const displayIndices = [];
+            if (k <= maxDisplaySteps) {
+                for (let i = 0; i < k; i++) displayIndices.push(i);
+            } else {
+                const step = Math.floor(k / maxDisplaySteps);
+                for (let i = 0; i < maxDisplaySteps - 1; i++) {
+                    displayIndices.push(i * step);
+                }
+                displayIndices.push(k - 1); // Always show final
+            }
+
             encryptionState.isAnimating = true;
             encryptionState.animationTime = 0;
-            encryptionState.dashOffset = 0;
-            encryptionState.currentAnimationStep = 0;
-            encryptionState.particles = [];
 
             function animate() {
                 const canvasData = setupCanvas(canvas);
                 if (!canvasData) return;
                 const { ctx, cssWidth, cssHeight } = canvasData;
 
-                const { a, b, p } = encryptionState.curve;
-                const G = encryptionState.generator;
-                const Q = encryptionState.publicKey;
-                const R = ciphertext.R;
-                const S = ciphertext.shared_secret_point;
-
-                // Update animation time
-                encryptionState.animationTime += 0.016; // ~60fps
-                encryptionState.dashOffset = (encryptionState.dashOffset + 0.5) % 14;
-
-                // Clear canvas
-                clearCanvas(ctx, cssWidth, cssHeight);
-
-                // Draw grid and axes
-                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
-
-                // Draw all curve points in background
-                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
-
-                // Calculate animation progress
+                encryptionState.animationTime += 0.025;
                 const time = encryptionState.animationTime;
 
-                // Step 1: Show G (0-1s)
-                if (time <= 5) {
-                    if (time > 0) {
-                        const alpha = Math.min(1, time);
-                        ctx.save();
-                        ctx.globalAlpha = alpha;
-                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
-                        ctx.restore();
-                    }
+                clearCanvas(ctx, cssWidth, cssHeight);
+                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
 
-                    // Step 2: Show Q (1-2s)
-                    if (time > 1) {
-                        const alpha = Math.min(1, time - 1);
-                        ctx.save();
-                        ctx.globalAlpha = alpha;
-                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
-                        ctx.restore();
-                    }
+                // Phase 1: Computing R = k×G (0-2.5s)
+                if (time < 2.5) {
+                    drawOperationLabel(ctx, cssWidth, `Step 1: R = ${k} × G`, '#f59e0b');
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G');
 
-                    // Step 3: Animate G -> R connection and show R (2-3.5s)
-                    if (time > 2) {
-                        const progress = Math.min(1, (time - 2) / 1.5);
-                        ctx.save();
-                        ctx.globalAlpha = progress;
-                        drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b', progress);
-                        ctx.restore();
+                    const progress = time / 2.5;
+                    const currentStep = Math.floor(progress * displayIndices.length);
 
-                        if (progress > 0.5) {
-                            const pointAlpha = Math.min(1, (progress - 0.5) * 2);
-                            ctx.save();
-                            ctx.globalAlpha = pointAlpha;
-                            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)', time);
-                            ctx.restore();
+                    // Draw previous steps (small and dimmed)
+                    for (let i = 0; i < currentStep && i < displayIndices.length; i++) {
+                        const idx = displayIndices[i];
+                        const pt = stepsR[idx];
+                        drawSmallPoint(ctx, cssWidth, cssHeight, p, pt, '#f59e0b', 0.4);
+
+                        if (i > 0) {
+                            const prevPt = stepsR[displayIndices[i-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#f59e0b', 0.25);
                         }
                     }
 
-                    // Step 4: Animate Q -> S connection and show S (3.5-5s)
-                    if (time > 3.5) {
-                        const progress = Math.min(1, (time - 3.5) / 1.5);
-                        ctx.save();
-                        ctx.globalAlpha = progress;
-                        drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7', progress);
-                        ctx.restore();
+                    // Draw current step (highlighted)
+                    if (currentStep < displayIndices.length) {
+                        const idx = displayIndices[currentStep];
+                        const pt = stepsR[idx];
+                        const isLast = currentStep === displayIndices.length - 1;
+                        const label = isLast ? 'R' : `${idx+1}G`;
 
-                        if (progress > 0.5) {
-                            const pointAlpha = Math.min(1, (progress - 0.5) * 2);
-                            ctx.save();
-                            ctx.globalAlpha = pointAlpha;
-                            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)', time);
-                            ctx.restore();
+                        drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, pt, '#f59e0b', label);
+
+                        if (currentStep > 0) {
+                            const prevPt = stepsR[displayIndices[currentStep-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#f59e0b', 0.7);
                         }
                     }
+
+                // Phase 2: Computing S = k×Q (2.5-5s)
+                } else if (time < 5) {
+                    drawOperationLabel(ctx, cssWidth, `Step 2: S = ${k} × Q`, '#a855f7');
+
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G', 0.3);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, stepsR[k-1], '#f59e0b', 'R', 0.4);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q');
+
+                    const progress = (time - 2.5) / 2.5;
+                    const currentStep = Math.floor(progress * displayIndices.length);
+
+                    // Draw previous steps (small and dimmed)
+                    for (let i = 0; i < currentStep && i < displayIndices.length; i++) {
+                        const idx = displayIndices[i];
+                        const pt = stepsS[idx];
+                        drawSmallPoint(ctx, cssWidth, cssHeight, p, pt, '#a855f7', 0.4);
+
+                        if (i > 0) {
+                            const prevPt = stepsS[displayIndices[i-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#a855f7', 0.25);
+                        }
+                    }
+
+                    // Draw current step (highlighted)
+                    if (currentStep < displayIndices.length) {
+                        const idx = displayIndices[currentStep];
+                        const pt = stepsS[idx];
+                        const isLast = currentStep === displayIndices.length - 1;
+                        const label = isLast ? 'S' : `${idx+1}Q`;
+
+                        drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, pt, '#a855f7', label);
+
+                        if (currentStep > 0) {
+                            const prevPt = stepsS[displayIndices[currentStep-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#a855f7', 0.7);
+                        }
+                    }
+
                 } else {
-                    // After animation completes, show everything with pulsing
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)', time);
-
-                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b', 1);
-                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7', 1);
+                    // Final
+                    drawOperationLabel(ctx, cssWidth, '✓ Encryption Complete', '#10b981');
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G', 0.3);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q', 0.3);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, stepsR[k-1], '#f59e0b', 'R (Send)');
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, stepsS[k-1], '#a855f7', 'S (Secret)');
                 }
 
-                // Update and draw particles
-                updateParticles(ctx);
-
-                // Continue animation
-                if (encryptionState.isAnimating) {
+                if (encryptionState.isAnimating && time < 6.5) {
                     encryptionState.animationFrame = requestAnimationFrame(animate);
                 }
             }
@@ -3969,114 +4020,99 @@
                 cancelAnimationFrame(encryptionState.animationFrame);
             }
 
-            // Initialize animation
+            const { a, b, p } = encryptionState.curve;
+            const R = ciphertext.R;
+            const S = sharedSecret;
+            const d = encryptionState.privateKey;
+            const G = encryptionState.generator;
+            const Q = encryptionState.publicKey;
+
+            // Compute intermediate steps for S = d × R
+            const stepsS = [];
+            let currentPoint = { x: null, y: null };
+            for (let i = 1; i <= d; i++) {
+                currentPoint = addPointsOnCurve(currentPoint, R, a, b, p);
+                stepsS.push({ ...currentPoint });
+            }
+
+            // Select key steps to show (max 5)
+            const maxDisplaySteps = 5;
+            const displayIndices = [];
+            if (d <= maxDisplaySteps) {
+                for (let i = 0; i < d; i++) displayIndices.push(i);
+            } else {
+                const step = Math.floor(d / maxDisplaySteps);
+                for (let i = 0; i < maxDisplaySteps - 1; i++) {
+                    displayIndices.push(i * step);
+                }
+                displayIndices.push(d - 1);
+            }
+
             encryptionState.isAnimating = true;
             encryptionState.animationTime = 0;
-            encryptionState.dashOffset = 0;
-            encryptionState.particles = [];
 
             function animate() {
                 const canvasData = setupCanvas(canvas);
                 if (!canvasData) return;
                 const { ctx, cssWidth, cssHeight } = canvasData;
 
-                const { a, b, p } = encryptionState.curve;
-                const R = ciphertext.R;
-                const S = sharedSecret;
-                const Q = encryptionState.publicKey;
-                const G = encryptionState.generator;
-
-                // Update animation time
-                encryptionState.animationTime += 0.016; // ~60fps
-                encryptionState.dashOffset = (encryptionState.dashOffset + 0.5) % 14;
-
-                // Clear canvas
-                clearCanvas(ctx, cssWidth, cssHeight);
-
-                // Draw grid and axes
-                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
-
-                // Draw all curve points in background
-                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
-
+                encryptionState.animationTime += 0.025;
                 const time = encryptionState.animationTime;
 
-                // Show G and Q for context (dimmed) - fade in
-                if (time > 0) {
-                    const alpha = Math.min(0.35, time * 0.35);
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
-                    ctx.restore();
-                }
+                clearCanvas(ctx, cssWidth, cssHeight);
+                drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+                drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
 
-                // Step 1: Show R (0-1s)
-                if (time > 0) {
-                    const alpha = Math.min(1, time);
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)', time);
-                    ctx.restore();
+                // Show computation (0-3s)
+                if (time < 3) {
+                    drawOperationLabel(ctx, cssWidth, `Decryption: S = ${d} × R`, '#a855f7');
 
-                    // Particle burst when R appears
-                    if (time > 0.1 && time < 0.2) {
-                        const padding = 50;
-                        const width = cssWidth - 2 * padding;
-                        const height = cssHeight - 2 * padding;
-                        const maxVal = Math.max(1, p - 1);
-                        const x = padding + (R.x / maxVal) * width;
-                        const y = cssHeight - padding - (R.y / maxVal) * height;
-                        createParticles(x, y, '#f59e0b', 20);
-                    }
-                }
+                    // Show context
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G', 0.25);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q', 0.25);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R');
 
-                // Step 2: Animate R -> S connection and show S (1-2.5s)
-                if (time > 1) {
-                    const progress = Math.min(1, (time - 1) / 1.5);
-                    ctx.save();
-                    ctx.globalAlpha = progress;
-                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, R, S, '#a855f7', progress);
-                    ctx.restore();
+                    // Show steps progressively
+                    const progress = time / 3;
+                    const currentStep = Math.floor(progress * displayIndices.length);
 
-                    if (progress > 0.5) {
-                        const pointAlpha = Math.min(1, (progress - 0.5) * 2);
-                        ctx.save();
-                        ctx.globalAlpha = pointAlpha;
-                        drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)', time);
-                        ctx.restore();
+                    // Draw previous steps (small and dimmed)
+                    for (let i = 0; i < currentStep && i < displayIndices.length; i++) {
+                        const idx = displayIndices[i];
+                        const pt = stepsS[idx];
+                        drawSmallPoint(ctx, cssWidth, cssHeight, p, pt, '#a855f7', 0.4);
 
-                        // Particle burst when S appears
-                        if (time > 1.8 && time < 1.9) {
-                            const padding = 50;
-                            const width = cssWidth - 2 * padding;
-                            const height = cssHeight - 2 * padding;
-                            const maxVal = Math.max(1, p - 1);
-                            const x = padding + (S.x / maxVal) * width;
-                            const y = cssHeight - padding - (S.y / maxVal) * height;
-                            createParticles(x, y, '#a855f7', 25);
+                        if (i > 0) {
+                            const prevPt = stepsS[displayIndices[i-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#a855f7', 0.25);
                         }
                     }
+
+                    // Draw current step (highlighted)
+                    if (currentStep < displayIndices.length) {
+                        const idx = displayIndices[currentStep];
+                        const pt = stepsS[idx];
+                        const isLast = currentStep === displayIndices.length - 1;
+                        const label = isLast ? 'S' : `${idx+1}R`;
+
+                        drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, pt, '#a855f7', label);
+
+                        if (currentStep > 0) {
+                            const prevPt = stepsS[displayIndices[currentStep-1]];
+                            drawSimpleConnection(ctx, cssWidth, cssHeight, p, prevPt, pt, '#a855f7', 0.7);
+                        }
+                    }
+
+                } else {
+                    // Final
+                    drawOperationLabel(ctx, cssWidth, '✓ Decryption Complete', '#10b981');
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G', 0.3);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q', 0.3);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R', 0.5);
+                    drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, stepsS[d-1], '#a855f7', 'S (Secret!)');
                 }
 
-                // After animation completes, show everything with pulsing
-                if (time > 2.5) {
-                    ctx.save();
-                    ctx.globalAlpha = 0.35;
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)', time);
-                    ctx.restore();
-
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)', time);
-                    drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)', time);
-                    drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, R, S, '#a855f7', 1);
-                }
-
-                // Update and draw particles
-                updateParticles(ctx);
-
-                // Continue animation
-                if (encryptionState.isAnimating) {
+                if (encryptionState.isAnimating && time < 4.5) {
                     encryptionState.animationFrame = requestAnimationFrame(animate);
                 }
             }
@@ -4172,7 +4208,8 @@
             }
         }
 
-        function drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, point, color, label, time = 0) {
+        // Simple point drawing for encryption visualization
+        function drawEncryptionPointSimple(ctx, cssWidth, cssHeight, p, point, color, label, alpha = 1.0) {
             if (!point || point.x === null || point.y === null) return;
 
             const padding = 50;
@@ -4183,173 +4220,417 @@
             const x = padding + (point.x / maxVal) * width;
             const y = cssHeight - padding - (point.y / maxVal) * height;
 
-            // Pulsing effect
-            const pulseScale = 1 + Math.sin(time * 3) * 0.15;
-            const glowIntensity = 0.2 + Math.sin(time * 3) * 0.1;
-
-            // Draw larger outer glow with pulse
             ctx.save();
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 25 * pulseScale;
+            ctx.globalAlpha = alpha;
+
+            // Draw point
             ctx.fillStyle = color;
-            ctx.globalAlpha = glowIntensity;
             ctx.beginPath();
-            ctx.arc(x, y, 18 * pulseScale, 0, 2 * Math.PI);
+            ctx.arc(x, y, 6, 0, 2 * Math.PI);
             ctx.fill();
-            ctx.restore();
 
-            // Draw middle glow ring
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath();
-            ctx.arc(x, y, 14, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.restore();
-
-            // Draw point with better visibility
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 20;
+            // Draw outline
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.restore();
-
-            // Draw thicker outline with pulse
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(x, y, 11 * pulseScale, 0, 2 * Math.PI);
             ctx.stroke();
 
-            // Draw label text without background
-            ctx.font = 'bold 14px Arial';
-            const labelX = x + 18;
-            const labelY = y - 18;
-            ctx.shadowBlur = 0;
+            // Draw label
+            ctx.font = 'bold 12px Arial';
             ctx.fillStyle = color;
-            ctx.fillText(label, labelX, labelY);
+            ctx.fillText(label, x + 12, y - 10);
 
-            // Point coordinates below without background
+            // Point coordinates below
             const coordText = `(${point.x}, ${point.y})`;
-            ctx.font = '11px monospace';
-            ctx.fillStyle = '#e5e7eb';
+            ctx.font = '10px monospace';
+            ctx.fillStyle = '#aaa';
             ctx.textAlign = 'center';
-            ctx.fillText(coordText, x, y + 26);
+            ctx.fillText(coordText, x, y + 20);
             ctx.textAlign = 'left';
+
+            ctx.restore();
         }
 
-        function drawEncryptionConnection(ctx, cssWidth, cssHeight, p, point1, point2, color) {
-            if (!point1 || !point2 || point1.x === null || point2.x === null) return;
+        // Draw operation label at top of canvas
+        function drawOperationLabel(ctx, cssWidth, text, color) {
+            ctx.save();
+            ctx.font = 'bold 14px Arial';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.fillText(text, cssWidth / 2, 25);
+            ctx.restore();
+        }
+
+        // Draw simple arrow between two points
+        function drawSimpleArrow(ctx, cssWidth, cssHeight, p, fromPoint, toPoint, color, alpha) {
+            if (!fromPoint || !toPoint || fromPoint.x === null || toPoint.x === null) return;
 
             const padding = 50;
             const width = cssWidth - 2 * padding;
             const height = cssHeight - 2 * padding;
             const maxVal = Math.max(1, p - 1);
 
-            const x1 = padding + (point1.x / maxVal) * width;
-            const y1 = cssHeight - padding - (point1.y / maxVal) * height;
-            const x2 = padding + (point2.x / maxVal) * width;
-            const y2 = cssHeight - padding - (point2.y / maxVal) * height;
+            const x1 = padding + (fromPoint.x / maxVal) * width;
+            const y1 = cssHeight - padding - (fromPoint.y / maxVal) * height;
+            const x2 = padding + (toPoint.x / maxVal) * width;
+            const y2 = cssHeight - padding - (toPoint.y / maxVal) * height;
 
-            // Draw animated dashed line
             ctx.save();
+            ctx.globalAlpha = alpha * 0.6;
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2.5;
-            ctx.setLineDash([8, 6]);
-            ctx.globalAlpha = 0.7;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+
+            // Draw line
             ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.stroke();
-            ctx.restore();
 
-            // Draw arrow at midpoint
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2;
+            // Draw arrowhead
+            ctx.setLineDash([]);
             const angle = Math.atan2(y2 - y1, x2 - x1);
-
-            ctx.save();
-            ctx.translate(midX, midY);
-            ctx.rotate(angle);
+            const arrowSize = 8;
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(8, 0);
-            ctx.lineTo(-4, -6);
-            ctx.lineTo(-4, 6);
+            ctx.moveTo(x2, y2);
+            ctx.lineTo(
+                x2 - arrowSize * Math.cos(angle - Math.PI / 6),
+                y2 - arrowSize * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.lineTo(
+                x2 - arrowSize * Math.cos(angle + Math.PI / 6),
+                y2 - arrowSize * Math.sin(angle + Math.PI / 6)
+            );
             ctx.closePath();
             ctx.fill();
+
             ctx.restore();
         }
 
-        function drawEncryptionConnectionAnimated(ctx, cssWidth, cssHeight, p, point1, point2, color, progress) {
-            if (!point1 || !point2 || point1.x === null || point2.x === null) return;
+        // Draw simple connecting line between points (for step progression)
+        function drawSimpleConnection(ctx, cssWidth, cssHeight, p, fromPoint, toPoint, color, alpha) {
+            if (!fromPoint || !toPoint || fromPoint.x === null || toPoint.x === null) return;
 
             const padding = 50;
             const width = cssWidth - 2 * padding;
             const height = cssHeight - 2 * padding;
             const maxVal = Math.max(1, p - 1);
 
-            const x1 = padding + (point1.x / maxVal) * width;
-            const y1 = cssHeight - padding - (point1.y / maxVal) * height;
-            const x2 = padding + (point2.x / maxVal) * width;
-            const y2 = cssHeight - padding - (point2.y / maxVal) * height;
+            const x1 = padding + (fromPoint.x / maxVal) * width;
+            const y1 = cssHeight - padding - (fromPoint.y / maxVal) * height;
+            const x2 = padding + (toPoint.x / maxVal) * width;
+            const y2 = cssHeight - padding - (toPoint.y / maxVal) * height;
 
-            // Animate line drawing from point1 to point2
-            const currentX2 = x1 + (x2 - x1) * progress;
-            const currentY2 = y1 + (y2 - y1) * progress;
-
-            // Draw glowing line
             ctx.save();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 15;
-            ctx.setLineDash([8, 6]);
-            ctx.lineDashOffset = -encryptionState.dashOffset;
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(currentX2, currentY2);
-            ctx.stroke();
-            ctx.restore();
-
-            // Draw thinner inner line
-            ctx.save();
+            ctx.globalAlpha = alpha;
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.5;
-            ctx.setLineDash([8, 6]);
-            ctx.lineDashOffset = -encryptionState.dashOffset;
+            ctx.setLineDash([3, 3]);
+
             ctx.beginPath();
             ctx.moveTo(x1, y1);
-            ctx.lineTo(currentX2, currentY2);
+            ctx.lineTo(x2, y2);
             ctx.stroke();
+
             ctx.restore();
+        }
 
-            // Draw arrow at current endpoint
-            if (progress > 0.3) {
-                const angle = Math.atan2(y2 - y1, x2 - x1);
-                ctx.save();
-                ctx.translate(currentX2, currentY2);
-                ctx.rotate(angle);
-                ctx.fillStyle = color;
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 10;
+        // Draw small point (for previous steps in animation)
+        function drawSmallPoint(ctx, cssWidth, cssHeight, p, point, color, alpha) {
+            if (!point || point.x === null || point.y === null) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            const x = padding + (point.x / maxVal) * width;
+            const y = cssHeight - padding - (point.y / maxVal) * height;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Draw scalar multiplication steps (similar to Fp multiplication)
+        function drawScalarMultiplicationSteps(ctx, cssWidth, cssHeight, p, steps, numToShow, color, basePointLabel) {
+            if (!steps || steps.length === 0 || numToShow === 0) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            // Draw connecting lines between consecutive points
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.globalAlpha = 0.5;
+
+            for (let i = 1; i < numToShow; i++) {
+                const prev = steps[i - 1];
+                const curr = steps[i];
+                if (!prev || !curr || prev.x === null || curr.x === null) continue;
+
+                const x1 = padding + (prev.x / maxVal) * width;
+                const y1 = cssHeight - padding - (prev.y / maxVal) * height;
+                const x2 = padding + (curr.x / maxVal) * width;
+                const y2 = cssHeight - padding - (curr.y / maxVal) * height;
+
                 ctx.beginPath();
-                ctx.moveTo(10, 0);
-                ctx.lineTo(-5, -7);
-                ctx.lineTo(-5, 7);
-                ctx.closePath();
-                ctx.fill();
-                ctx.restore();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
 
-                // Create particles along the line
-                if (progress < 1 && Math.random() < 0.3) {
-                    createParticles(currentX2, currentY2, color, 3);
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+
+            // Draw points with labels
+            for (let i = 0; i < numToShow; i++) {
+                const pt = steps[i];
+                if (!pt || pt.x === null) continue;
+
+                const x = padding + (pt.x / maxVal) * width;
+                const y = cssHeight - padding - (pt.y / maxVal) * height;
+
+                // Draw point
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw outline
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Label as 1P, 2P, etc.
+                const label = `${i + 1}${basePointLabel}`;
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = color;
+                ctx.fillText(label, x + 10, y - 8);
+
+                // Show coordinates for the last point being revealed
+                if (i === numToShow - 1) {
+                    const coordText = `(${pt.x}, ${pt.y})`;
+                    ctx.font = '10px monospace';
+                    ctx.fillStyle = '#aaa';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(coordText, x, y + 18);
+                    ctx.textAlign = 'left';
                 }
             }
+        }
+
+        // Adaptive scalar multiplication step drawing (shows fewer steps if k is large)
+        function drawScalarStepsAdaptive(ctx, cssWidth, cssHeight, p, steps, numToShow, progress, color, basePointLabel, stepInterval) {
+            if (!steps || steps.length === 0 || numToShow === 0) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            // Determine which steps to actually display (show fewer if many steps)
+            const displayIndices = [];
+            for (let i = 0; i < numToShow; i++) {
+                if ((i + 1) % stepInterval === 0 || i === numToShow - 1) {
+                    displayIndices.push(i);
+                }
+            }
+
+            // Draw connecting lines between displayed steps
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.globalAlpha = 0.5;
+
+            for (let i = 1; i < displayIndices.length; i++) {
+                const prevIdx = displayIndices[i - 1];
+                const currIdx = displayIndices[i];
+                const prev = steps[prevIdx];
+                const curr = steps[currIdx];
+                if (!prev || !curr || prev.x === null || curr.x === null) continue;
+
+                const x1 = padding + (prev.x / maxVal) * width;
+                const y1 = cssHeight - padding - (prev.y / maxVal) * height;
+                const x2 = padding + (curr.x / maxVal) * width;
+                const y2 = cssHeight - padding - (curr.y / maxVal) * height;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+
+            // Draw points with labels
+            displayIndices.forEach((idx, displayIdx) => {
+                const pt = steps[idx];
+                if (!pt || pt.x === null) return;
+
+                const x = padding + (pt.x / maxVal) * width;
+                const y = cssHeight - padding - (pt.y / maxVal) * height;
+
+                // Fade in the point smoothly
+                const pointProgress = Math.min(1, (numToShow - idx) / 2);
+                const alpha = Math.min(1, pointProgress);
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // Draw point
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Draw outline
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Label - show actual multiplication count
+                const label = `${idx + 1}${basePointLabel}`;
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = color;
+                ctx.fillText(label, x + 10, y - 8);
+
+                // Show coordinates for the last point
+                if (displayIdx === displayIndices.length - 1) {
+                    const coordText = `(${pt.x}, ${pt.y})`;
+                    ctx.font = '10px monospace';
+                    ctx.fillStyle = '#aaa';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(coordText, x, y + 18);
+                    ctx.textAlign = 'left';
+                }
+
+                ctx.restore();
+            });
+        }
+
+        // Highlighted point drawing with subtle pulse
+        function drawEncryptionPointHighlighted(ctx, cssWidth, cssHeight, p, point, color, label, time, alpha = 1.0) {
+            if (!point || point.x === null || point.y === null) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            const x = padding + (point.x / maxVal) * width;
+            const y = cssHeight - padding - (point.y / maxVal) * height;
+
+            // Subtle pulse
+            const pulse = 1 + Math.sin(time * 2.5) * 0.12;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+
+            // Outer glow
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 12 * pulse;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = alpha * 0.25;
+            ctx.beginPath();
+            ctx.arc(x, y, 14 * pulse, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Main point
+            ctx.shadowBlur = 8;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Outline
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(x, y, 9, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Label
+            ctx.font = 'bold 12px Arial';
+            ctx.fillStyle = color;
+            ctx.fillText(label, x + 12, y - 10);
+
+            // Coordinates
+            const coordText = `(${point.x}, ${point.y})`;
+            ctx.font = '10px monospace';
+            ctx.fillStyle = '#aaa';
+            ctx.textAlign = 'center';
+            ctx.fillText(coordText, x, y + 22);
+            ctx.textAlign = 'left';
+
+            ctx.restore();
+        }
+
+        // Add two points on the curve (helper function)
+        function addPointsOnCurve(P, Q, a, b, p) {
+            // Handle point at infinity
+            if (P.x === null || P.x === undefined) return { ...Q };
+            if (Q.x === null || Q.x === undefined) return { ...P };
+
+            const x1 = P.x, y1 = P.y;
+            const x2 = Q.x, y2 = Q.y;
+
+            // Check if points are inverses
+            if (x1 === x2 && y1 !== y2) {
+                return { x: null, y: null };
+            }
+
+            let slope;
+            if (x1 === x2 && y1 === y2) {
+                // Point doubling
+                if (y1 === 0) return { x: null, y: null };
+                const numerator = (3 * x1 * x1 + a) % p;
+                const denominator = (2 * y1) % p;
+                const inv = modInverse(denominator, p);
+                slope = (numerator * inv) % p;
+            } else {
+                // Point addition
+                const numerator = (y2 - y1 + p) % p;
+                const denominator = (x2 - x1 + p) % p;
+                const inv = modInverse(denominator, p);
+                slope = (numerator * inv) % p;
+            }
+
+            const x3 = (slope * slope - x1 - x2 + 3 * p) % p;
+            const y3 = (slope * (x1 - x3) - y1 + 2 * p) % p;
+
+            return { x: x3, y: y3 };
+        }
+
+        // Modular inverse using extended Euclidean algorithm
+        function modInverse(a, m) {
+            a = ((a % m) + m) % m;
+            let [old_r, r] = [a, m];
+            let [old_s, s] = [1, 0];
+
+            while (r !== 0) {
+                const quotient = Math.floor(old_r / r);
+                [old_r, r] = [r, old_r - quotient * r];
+                [old_s, s] = [s, old_s - quotient * s];
+            }
+
+            return ((old_s % m) + m) % m;
         }
 
         function enableEncryptionAnimationControls(numSteps) {
