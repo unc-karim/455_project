@@ -10,7 +10,8 @@ import os
 import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-import socket, dns.resolver
+import socket
+# import dns.resolver  # Not used in this version
 import json
 
 app = Flask(__name__)
@@ -802,6 +803,210 @@ def api_history_clear(ctype):
         conn.close()
 
 # Removed email verification helpers and verify route – username-only auth
+
+# ========================= ENCRYPTION API ========================= #
+
+@app.route('/api/encryption/init', methods=['POST'])
+def api_init_encryption():
+    """Initialize encryption system with curve parameters and generate keys"""
+    try:
+        data = request.get_json()
+        a = int(data['a'])
+        b = int(data['b'])
+        p = int(data['p'])
+
+        # Initialize curve
+        curve = EllipticCurve(a, b, p)
+
+        # Find all points to use as generator
+        points = curve.find_all_points()
+        # Filter out point at infinity
+        valid_points = [pt for pt in points if pt != (None, None)]
+
+        if len(valid_points) < 2:
+            return jsonify({'success': False, 'error': 'Curve has too few points for encryption'}), 400
+
+        # Choose a generator point (first non-infinity point)
+        generator = valid_points[0]
+
+        # Generate random private key (between 1 and p-1)
+        import secrets
+        private_key = secrets.randbelow(p - 1) + 1
+
+        # Compute public key: public_key = private_key * generator
+        public_key = curve.scalar_multiply(private_key, generator)
+
+        # Store in session for this user
+        session['encryption_params'] = {
+            'a': a, 'b': b, 'p': p,
+            'generator': generator,
+            'private_key': private_key,
+            'public_key': public_key
+        }
+
+        user = get_current_user()
+        if user:
+            save_history(user['id'], 'Init Encryption', f'Initialized encryption on E_{p}({a}, {b})')
+
+        return jsonify({
+            'success': True,
+            'generator': {'x': generator[0], 'y': generator[1]},
+            'private_key': private_key,
+            'public_key': {'x': public_key[0], 'y': public_key[1]},
+            'num_points': len(valid_points),
+            'message': f'Encryption system initialized on E_{p}({a}, {b})'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/encryption/encrypt', methods=['POST'])
+def api_encrypt():
+    """Encrypt a message using elliptic curve cryptography"""
+    try:
+        data = request.get_json()
+        plaintext = data['plaintext']
+
+        # Get encryption parameters from session
+        enc_params = session.get('encryption_params')
+        if not enc_params:
+            return jsonify({'success': False, 'error': 'Encryption system not initialized'}), 400
+
+        a, b, p = enc_params['a'], enc_params['b'], enc_params['p']
+        generator = tuple(enc_params['generator'])
+        public_key = tuple(enc_params['public_key'])
+
+        curve = EllipticCurve(a, b, p)
+
+        # Generate random ephemeral key k
+        import secrets
+        k = secrets.randbelow(p - 1) + 1
+
+        # Compute R = k * G
+        R = curve.scalar_multiply(k, generator)
+
+        # Compute shared secret: S = k * public_key
+        S = curve.scalar_multiply(k, public_key)
+
+        # Use x-coordinate of S as encryption key
+        shared_secret = S[0] if S[0] is not None else 0
+
+        # Simple XOR encryption with the shared secret
+        # Convert message to bytes and encrypt each byte
+        encrypted_bytes = []
+        steps = []
+
+        steps.append(f"Step 1: Generate random ephemeral key k = {k}")
+        steps.append(f"Step 2: Compute R = k × G = {k} × ({generator[0]}, {generator[1]})")
+        steps.append(f"       Result: R = ({R[0]}, {R[1]})")
+        steps.append(f"Step 3: Compute shared secret S = k × PublicKey")
+        steps.append(f"       S = {k} × ({public_key[0]}, {public_key[1]})")
+        steps.append(f"       Result: S = ({S[0]}, {S[1]})")
+        steps.append(f"Step 4: Extract encryption key from S.x = {shared_secret}")
+        steps.append(f"Step 5: Encrypt message using XOR with derived key")
+
+        # Create a pseudo-random stream from the shared secret
+        for i, char in enumerate(plaintext):
+            byte_val = ord(char)
+            # Use shared_secret with position to create encryption key
+            key_byte = (shared_secret + i) % 256
+            encrypted_byte = byte_val ^ key_byte
+            encrypted_bytes.append(encrypted_byte)
+            if i < 3:  # Show first 3 for brevity
+                steps.append(f"       '{char}' (ASCII {byte_val}) XOR {key_byte} = {encrypted_byte}")
+
+        if len(plaintext) > 3:
+            steps.append(f"       ... ({len(plaintext) - 3} more characters)")
+
+        # Format result
+        result = {
+            'R': {'x': R[0], 'y': R[1]},
+            'encrypted': encrypted_bytes,
+            'shared_secret_point': {'x': S[0], 'y': S[1]},
+            'k': k  # Include for visualization (normally kept secret)
+        }
+
+        user = get_current_user()
+        if user:
+            save_history(user['id'], 'Encrypt Message', f'Encrypted {len(plaintext)} characters')
+
+        return jsonify({
+            'success': True,
+            'ciphertext': result,
+            'steps': steps,
+            'plaintext_length': len(plaintext)
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/encryption/decrypt', methods=['POST'])
+def api_decrypt():
+    """Decrypt a ciphertext using elliptic curve cryptography"""
+    try:
+        data = request.get_json()
+        ciphertext = data['ciphertext']
+
+        # Get encryption parameters from session
+        enc_params = session.get('encryption_params')
+        if not enc_params:
+            return jsonify({'success': False, 'error': 'Encryption system not initialized'}), 400
+
+        a, b, p = enc_params['a'], enc_params['b'], enc_params['p']
+        private_key = enc_params['private_key']
+
+        curve = EllipticCurve(a, b, p)
+
+        # Extract R from ciphertext
+        R = (ciphertext['R']['x'], ciphertext['R']['y'])
+        encrypted_bytes = ciphertext['encrypted']
+
+        # Compute shared secret: S = private_key * R
+        S = curve.scalar_multiply(private_key, R)
+
+        # Use x-coordinate of S as decryption key
+        shared_secret = S[0] if S[0] is not None else 0
+
+        # Decrypt using XOR
+        decrypted_chars = []
+        steps = []
+
+        steps.append(f"Step 1: Extract R from ciphertext: R = ({R[0]}, {R[1]})")
+        steps.append(f"Step 2: Compute shared secret S = PrivateKey × R")
+        steps.append(f"       S = {private_key} × ({R[0]}, {R[1]})")
+        steps.append(f"       Result: S = ({S[0]}, {S[1]})")
+        steps.append(f"Step 3: Extract decryption key from S.x = {shared_secret}")
+        steps.append(f"Step 4: Decrypt message using XOR with derived key")
+
+        for i, encrypted_byte in enumerate(encrypted_bytes):
+            key_byte = (shared_secret + i) % 256
+            decrypted_byte = encrypted_byte ^ key_byte
+            decrypted_char = chr(decrypted_byte)
+            decrypted_chars.append(decrypted_char)
+            if i < 3:
+                steps.append(f"       {encrypted_byte} XOR {key_byte} = {decrypted_byte} ('{decrypted_char}')")
+
+        if len(encrypted_bytes) > 3:
+            steps.append(f"       ... ({len(encrypted_bytes) - 3} more characters)")
+
+        plaintext = ''.join(decrypted_chars)
+
+        user = get_current_user()
+        if user:
+            save_history(user['id'], 'Decrypt Message', f'Decrypted {len(plaintext)} characters')
+
+        return jsonify({
+            'success': True,
+            'plaintext': plaintext,
+            'steps': steps,
+            'shared_secret_point': {'x': S[0], 'y': S[1]}
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 
 if __name__ == '__main__':
     print("=" * 70)

@@ -685,8 +685,9 @@
         }
 
         function selectCurveType(tabId, label) {
-            // Update active state in dropdown
-            document.querySelectorAll('.curve-dropdown-item').forEach(item => {
+            // Update active state in dropdown (only in the curve type dropdown)
+            const curveDropdown = document.getElementById('curveSelectorBtn').parentElement;
+            curveDropdown.querySelectorAll('.curve-dropdown-item').forEach(item => {
                 item.classList.remove('active');
             });
             event.target.classList.add('active');
@@ -695,13 +696,48 @@
             switchTab(tabId);
         }
 
+        function selectEncryptionPane(paneId) {
+            // Update active state in encryption dropdown
+            const encryptDropdown = document.getElementById('encryptionSelectorBtn').parentElement;
+            encryptDropdown.querySelectorAll('.curve-dropdown-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Switch to encryption tab
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            document.getElementById('encryptionTab').classList.add('active');
+
+            // Switch to the selected encryption pane
+            const encryptionTab = document.getElementById('encryptionTab');
+            encryptionTab.querySelectorAll('.subtab-pane').forEach(p => p.classList.remove('active'));
+            const pane = document.getElementById(paneId);
+            if (pane) pane.classList.add('active');
+
+            // Redraw encryption canvases
+            _deferRedraw(() => redrawEncryptionCanvases());
+        }
+
         function switchSubtab(group, paneId){
-            const container = (group === 'real') ? document.getElementById('realTab') : document.getElementById('fpTab');
+            let container;
+            if (group === 'real') {
+                container = document.getElementById('realTab');
+            } else if (group === 'encrypt') {
+                container = document.getElementById('encryptionTab');
+            } else {
+                container = document.getElementById('fpTab');
+            }
             if (!container) return;
             container.querySelectorAll('.subtab-pane').forEach(p => p.classList.remove('active'));
             const pane = document.getElementById(paneId);
             if (pane) pane.classList.add('active');
-            if (group === 'real') { _deferRedraw(() => redrawRealCanvases()); } else { _deferRedraw(() => redrawAllCurves()); }
+            if (group === 'real') {
+                _deferRedraw(() => redrawRealCanvases());
+            } else if (group === 'encrypt') {
+                _deferRedraw(() => redrawEncryptionCanvases());
+            } else {
+                _deferRedraw(() => redrawAllCurves());
+            }
             // Load history when switching to history pane
             if (paneId === 'fpHistoryPane') loadHistory('fp');
             if (paneId === 'realHistoryPane') loadHistory('real');
@@ -903,6 +939,8 @@
             scalar: 'scalarResult',
             realAddition: 'realAdditionResult',
             realScalar: 'realScalarResult',
+            encryption: 'encryptionStepsDisplay',
+            decryption: 'decryptionStepsDisplay',
         };
 
         function getOperationResultContainer(operation) {
@@ -914,9 +952,16 @@
         function applyStepsVisibility(operation, visible) {
             const container = getOperationResultContainer(operation);
             if (!container) return;
-            container.querySelectorAll('.steps-container').forEach(el => {
-                el.style.display = visible ? '' : 'none';
-            });
+
+            // For encryption/decryption, toggle the entire steps display div
+            if (operation === 'encryption' || operation === 'decryption') {
+                container.style.display = visible ? '' : 'none';
+            } else {
+                // For other operations, toggle steps-container inside result
+                container.querySelectorAll('.steps-container').forEach(el => {
+                    el.style.display = visible ? '' : 'none';
+                });
+            }
         }
 
         function toggleStepsDisplay(operation) {
@@ -1935,6 +1980,13 @@
         // Removed legacy overlay login/signup functions to reduce duplication
 
         // New card handlers following spec
+        function hideAuthOverlay(){
+            const overlay = document.getElementById('authOverlay');
+            if (overlay) {
+                overlay.classList.remove('visible');
+            }
+        }
+
         async function submitLoginCard(){
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
@@ -1946,9 +1998,9 @@
             // Try /api/auth/login then fallback to /api/login
             const payload = {username, password};
             try {
-                let res = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                let res = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), credentials: 'same-origin'});
                 if(!res.ok){
-                    res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                    res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), credentials: 'same-origin'});
                 }
                 const data = await res.json();
                 if(!res.ok || !data.success){
@@ -1956,8 +2008,9 @@
                     return;
                 }
                 msgEl.textContent = '';
-                // Redirect to /app
-                window.location.href = '/app';
+                hideAuthOverlay();
+                loadSession();
+                showToast('Logged in successfully', 'success');
             } catch(e){
                 msgEl.textContent = 'Login error';
             }
@@ -3379,5 +3432,668 @@
                 if (params?.P){ document.getElementById('realMulPX').value = params.P.x; document.getElementById('realMulPY').value = params.P.y; }
                 document.getElementById('realK').value = params?.k ?? 1;
                 await scalarMultiplyReal();
+            }
+        }
+
+        // =================== ENCRYPTION SYSTEM =================== //
+
+        // Global state for encryption
+        let encryptionState = {
+            initialized: false,
+            curve: null,
+            generator: null,
+            privateKey: null,
+            publicKey: null,
+            allPoints: [],
+            currentCiphertext: null,
+            animationSteps: [],
+            currentStep: 0,
+            animationTimer: null
+        };
+
+        function loadEncryptionPreset(presetKey) {
+            const descEl = document.getElementById('encryptionCurveDesc');
+            if (presetKey === 'custom') {
+                descEl.textContent = 'Enter custom curve parameters';
+                return;
+            }
+
+            const preset = curvePresets[presetKey];
+            if (preset) {
+                document.getElementById('encryptParamA').value = preset.a;
+                document.getElementById('encryptParamB').value = preset.b;
+                document.getElementById('encryptParamP').value = preset.p;
+                descEl.textContent = preset.description;
+            }
+        }
+
+        async function initEncryptionCurve() {
+            const a = parseInt(document.getElementById('encryptParamA').value);
+            const b = parseInt(document.getElementById('encryptParamB').value);
+            const p = parseInt(document.getElementById('encryptParamP').value);
+
+            if (isNaN(a) || isNaN(b) || isNaN(p)) {
+                showToast('Please enter valid curve parameters', 'error');
+                return;
+            }
+
+            showLoading('Initializing encryption system...');
+
+            try {
+                const response = await fetch('/api/encryption/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ a, b, p })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    encryptionState.initialized = true;
+                    encryptionState.curve = { a, b, p };
+                    encryptionState.generator = data.generator;
+                    encryptionState.privateKey = data.private_key;
+                    encryptionState.publicKey = data.public_key;
+
+                    // Display system information
+                    const infoDiv = document.getElementById('encryptionSystemInfo');
+                    infoDiv.innerHTML = '<div class="result-box success"><h3>✓ ' + data.message + '</h3><p>Total points on curve: ' + data.num_points + '</p></div>';
+
+                    // Display key information
+                    const keyInfoDiv = document.getElementById('encryptionKeyInfo');
+                    keyInfoDiv.innerHTML = '<div class="result-box"><h3>Curve Parameters</h3><p><strong>Equation:</strong> y² = x³ + ' + a + 'x + ' + b + ' (mod ' + p + ')</p><p><strong>Generator G:</strong> (' + data.generator.x + ', ' + data.generator.y + ')</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h3>Your Keys</h3><p><strong>Private Key (d):</strong> ' + data.private_key + '</p><p><strong>Public Key (Q):</strong> (' + data.public_key.x + ', ' + data.public_key.y + ')</p><p style="font-size: 0.9em; color: #888; margin-top: 10px;">Q = d × G</p></div>';
+
+                    // Enable operation buttons
+                    document.getElementById('encryptOperationBtn').disabled = false;
+                    document.getElementById('decryptOperationBtn').disabled = false;
+
+                    showToast('Encryption system ready!', 'success');
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Failed to initialize encryption system', 'error');
+                console.error(error);
+            }
+        }
+
+        async function encryptMessage() {
+            if (!encryptionState.initialized) {
+                showToast('Please initialize the encryption system first', 'error');
+                return;
+            }
+
+            const plaintext = document.getElementById('plaintextInput').value;
+            if (!plaintext) {
+                showToast('Please enter a message to encrypt', 'error');
+                return;
+            }
+
+            showLoading('Encrypting message...');
+
+            try {
+                const response = await fetch('/api/encryption/encrypt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plaintext })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    encryptionState.currentCiphertext = data.ciphertext;
+                    encryptionState.animationSteps = data.steps;
+
+                    // Display result
+                    const resultDiv = document.getElementById('encryptionResult');
+                    const ctJson = JSON.stringify(data.ciphertext, null, 2);
+                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Encrypted</h3><p><strong>Original:</strong> "' + plaintext + '"</p><p><strong>Length:</strong> ' + data.plaintext_length + ' characters</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h4>Ciphertext:</h4><textarea readonly rows="6" style="width: 100%; font-family: monospace; font-size: 0.85em;">' + ctJson + '</textarea><button onclick="copyCiphertextToDecrypt()" style="margin-top: 10px;">Copy to Decrypt Tab</button></div>';
+
+                    // Display steps
+                    displayEncryptionSteps(data.steps);
+
+                    // Draw visualization
+                    drawEncryptionVisualization(data.ciphertext);
+
+                    // Enable animation controls
+                    enableEncryptionAnimationControls(data.steps.length);
+
+                    showToast('Message encrypted successfully!', 'success');
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Failed to encrypt message', 'error');
+                console.error(error);
+            }
+        }
+
+        async function decryptMessage() {
+            if (!encryptionState.initialized) {
+                showToast('Please initialize the encryption system first', 'error');
+                return;
+            }
+
+            const ciphertextInput = document.getElementById('ciphertextInput').value;
+            if (!ciphertextInput) {
+                showToast('Please enter ciphertext to decrypt', 'error');
+                return;
+            }
+
+            let ciphertext;
+            try {
+                ciphertext = JSON.parse(ciphertextInput);
+            } catch (e) {
+                showToast('Invalid JSON format', 'error');
+                return;
+            }
+
+            showLoading('Decrypting message...');
+
+            try {
+                const response = await fetch('/api/encryption/decrypt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ciphertext })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    // Display result
+                    const resultDiv = document.getElementById('decryptionResult');
+                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Decrypted</h3><p><strong>Decrypted Message:</strong></p><div style="padding: 15px; background: #2a2a2a; border-radius: 8px; margin: 10px 0;"><p style="font-size: 1.1em; color: #4ade80;">"' + data.plaintext + '"</p></div></div>';
+
+                    // Display steps
+                    displayDecryptionSteps(data.steps);
+
+                    // Draw visualization
+                    drawDecryptionVisualization(ciphertext, data.shared_secret_point);
+
+                    showToast('Message decrypted successfully!', 'success');
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Failed to decrypt message', 'error');
+                console.error(error);
+            }
+        }
+
+        function copyCiphertextToDecrypt() {
+            const ciphertext = JSON.stringify(encryptionState.currentCiphertext, null, 2);
+            document.getElementById('ciphertextInput').value = ciphertext;
+            selectEncryptionPane('decryptPane');
+            showToast('Ciphertext copied to decrypt tab', 'success');
+        }
+
+        function displayEncryptionSteps(steps) {
+            const stepsDiv = document.getElementById('encryptionStepsDisplay');
+            let html = '<div class="steps-container"><h3>Encryption Process:</h3>';
+            steps.forEach((step, i) => {
+                html += '<div class="step-item" id="encryptStep' + i + '"><div class="step-content">' + step + '</div></div>';
+            });
+            html += '</div>';
+            stepsDiv.innerHTML = html;
+        }
+
+        function displayDecryptionSteps(steps) {
+            const stepsDiv = document.getElementById('decryptionStepsDisplay');
+            let html = '<div class="steps-container"><h3>Decryption Process:</h3>';
+            steps.forEach((step, i) => {
+                html += '<div class="step-item"><div class="step-content">' + step + '</div></div>';
+            });
+            html += '</div>';
+            stepsDiv.innerHTML = html;
+        }
+
+        function drawEncryptionVisualization(ciphertext) {
+            const canvas = document.getElementById('encryptionCanvas');
+            if (!canvas) return;
+
+            const canvasData = setupCanvas(canvas);
+            if (!canvasData) return;
+            const { ctx, cssWidth, cssHeight } = canvasData;
+
+            const { a, b, p } = encryptionState.curve;
+            const G = encryptionState.generator;
+            const Q = encryptionState.publicKey;
+            const R = ciphertext.R;
+            const S = ciphertext.shared_secret_point;
+
+            // Clear canvas
+            clearCanvas(ctx, cssWidth, cssHeight);
+
+            // Draw grid and axes
+            drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+
+            // Draw all curve points in background
+            drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
+
+            // Highlight important points with glow effect
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)');
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)');
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Ephemeral)');
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Shared Secret)');
+
+            // Draw connections with labels
+            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, G, R, '#f59e0b');
+            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, Q, S, '#a855f7');
+
+            // Draw legend
+            drawEncryptionLegend(ctx, cssWidth, cssHeight, ciphertext.k);
+        }
+
+        function drawDecryptionVisualization(ciphertext, sharedSecret) {
+            const canvas = document.getElementById('decryptionCanvas');
+            if (!canvas) return;
+
+            const canvasData = setupCanvas(canvas);
+            if (!canvasData) return;
+            const { ctx, cssWidth, cssHeight } = canvasData;
+
+            const { a, b, p } = encryptionState.curve;
+            const R = ciphertext.R;
+            const S = sharedSecret;
+            const Q = encryptionState.publicKey;
+            const G = encryptionState.generator;
+
+            // Clear canvas
+            clearCanvas(ctx, cssWidth, cssHeight);
+
+            // Draw grid and axes
+            drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p);
+
+            // Draw all curve points in background
+            drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p);
+
+            // Show G and Q for context (dimmed)
+            ctx.save();
+            ctx.globalAlpha = 0.35;
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, G, '#3b82f6', 'G (Generator)');
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, Q, '#10b981', 'Q (Public Key)');
+            ctx.restore();
+
+            // Highlight R and S (main decryption points)
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, R, '#f59e0b', 'R (Received)');
+            drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, S, '#a855f7', 'S (Computed Secret)');
+
+            // Draw connection showing d×R = S
+            drawEncryptionConnection(ctx, cssWidth, cssHeight, p, R, S, '#a855f7');
+
+            // Draw legend/info box
+            drawDecryptionLegend(ctx, cssWidth, cssHeight, encryptionState.privateKey);
+        }
+
+        // Helper functions for encryption visualization
+        function drawEncryptionAxesGrid(ctx, cssWidth, cssHeight, p) {
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            // Background grid
+            ctx.strokeStyle = 'rgba(100, 100, 100, 0.15)';
+            ctx.lineWidth = 1;
+
+            const step = Math.max(1, Math.ceil(maxVal / 10));
+            for (let t = 0; t <= maxVal; t += step) {
+                const x = padding + (t / maxVal) * width;
+                const y = cssHeight - padding - (t / maxVal) * height;
+
+                // Vertical lines
+                ctx.beginPath();
+                ctx.moveTo(x, padding);
+                ctx.lineTo(x, cssHeight - padding);
+                ctx.stroke();
+
+                // Horizontal lines
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(cssWidth - padding, y);
+                ctx.stroke();
+            }
+
+            // Main axes
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(padding, padding, width, height);
+
+            // Axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            for (let t = 0; t <= maxVal; t += step) {
+                const x = padding + (t / maxVal) * width;
+                const y = cssHeight - padding - (t / maxVal) * height;
+
+                // X-axis labels
+                ctx.fillText(t.toString(), x, cssHeight - padding + 6);
+
+                // Y-axis labels
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(t.toString(), padding - 6, y);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+            }
+
+            // Axis titles
+            ctx.fillStyle = '#aaa';
+            ctx.font = '12px Arial';
+            ctx.fillText('x', cssWidth - padding + 15, cssHeight - padding);
+            ctx.save();
+            ctx.translate(padding - 25, padding);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('y', 0, 0);
+            ctx.restore();
+        }
+
+        function drawEncryptionCurvePoints(ctx, cssWidth, cssHeight, a, b, p) {
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.4)';
+
+            for (let xVal = 0; xVal < p; xVal++) {
+                const ySquared = (xVal * xVal * xVal + a * xVal + b) % p;
+                for (let yVal = 0; yVal < p; yVal++) {
+                    if ((yVal * yVal) % p === ySquared) {
+                        const canvasX = padding + (xVal / maxVal) * width;
+                        const canvasY = cssHeight - padding - (yVal / maxVal) * height;
+                        ctx.beginPath();
+                        ctx.arc(canvasX, canvasY, 2.5, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawEncryptionPointHighlight(ctx, cssWidth, cssHeight, p, point, color, label) {
+            if (!point || point.x === null || point.y === null) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            const x = padding + (point.x / maxVal) * width;
+            const y = cssHeight - padding - (point.y / maxVal) * height;
+
+            // Draw outer glow
+            ctx.save();
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.arc(x, y, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+
+            // Draw point
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 7, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Draw outline
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(x, y, 9, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Draw label with background
+            ctx.font = 'bold 13px monospace';
+            const metrics = ctx.measureText(label);
+            const labelX = x + 15;
+            const labelY = y - 15;
+
+            // Label background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(labelX - 3, labelY - 13, metrics.width + 6, 18);
+
+            // Label text
+            ctx.fillStyle = color;
+            ctx.fillText(label, labelX, labelY);
+
+            // Point coordinates below
+            const coordText = `(${point.x}, ${point.y})`;
+            ctx.font = '10px monospace';
+            const coordMetrics = ctx.measureText(coordText);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(x - coordMetrics.width/2 - 3, y + 12, coordMetrics.width + 6, 14);
+            ctx.fillStyle = '#ccc';
+            ctx.textAlign = 'center';
+            ctx.fillText(coordText, x, y + 22);
+            ctx.textAlign = 'left';
+        }
+
+        function drawEncryptionConnection(ctx, cssWidth, cssHeight, p, point1, point2, color) {
+            if (!point1 || !point2 || point1.x === null || point2.x === null) return;
+
+            const padding = 50;
+            const width = cssWidth - 2 * padding;
+            const height = cssHeight - 2 * padding;
+            const maxVal = Math.max(1, p - 1);
+
+            const x1 = padding + (point1.x / maxVal) * width;
+            const y1 = cssHeight - padding - (point1.y / maxVal) * height;
+            const x2 = padding + (point2.x / maxVal) * width;
+            const y2 = cssHeight - padding - (point2.y / maxVal) * height;
+
+            // Draw animated dashed line
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([8, 6]);
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw arrow at midpoint
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+
+            ctx.save();
+            ctx.translate(midX, midY);
+            ctx.rotate(angle);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.lineTo(-4, -6);
+            ctx.lineTo(-4, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawEncryptionLegend(ctx, cssWidth, cssHeight, ephemeralKey) {
+            // Draw info box explaining encryption
+            const boxX = 10;
+            const boxY = 10;
+            const boxWidth = 280;
+            const boxHeight = 140;
+
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+            // Border
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+            // Title
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText('Encryption Process', boxX + 10, boxY + 20);
+
+            // Content
+            ctx.fillStyle = '#fff';
+            ctx.font = '11px monospace';
+            let yPos = boxY + 40;
+
+            ctx.fillText('1. Generate random k = ' + ephemeralKey, boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('2. Compute R = k × G', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('3. Compute S = k × Q', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('4. Extract shared secret', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('5. Encrypt using XOR', boxX + 10, yPos);
+
+            // Note
+            ctx.fillStyle = '#10b981';
+            ctx.font = '10px monospace';
+            yPos += 20;
+            ctx.fillText('Send R + encrypted data', boxX + 10, yPos);
+        }
+
+        function drawDecryptionLegend(ctx, cssWidth, cssHeight, privateKey) {
+            // Draw info box explaining decryption
+            const boxX = 10;
+            const boxY = 10;
+            const boxWidth = 280;
+            const boxHeight = 140;
+
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+            // Border
+            ctx.strokeStyle = '#a855f7';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+            // Title
+            ctx.fillStyle = '#a855f7';
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText('Decryption Process', boxX + 10, boxY + 20);
+
+            // Content
+            ctx.fillStyle = '#fff';
+            ctx.font = '11px monospace';
+            let yPos = boxY + 40;
+
+            ctx.fillText('1. Receive R from ciphertext', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('2. Use private key d = ' + privateKey, boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('3. Compute S = d × R', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('4. Extract shared secret', boxX + 10, yPos);
+            yPos += 18;
+
+            ctx.fillText('5. Decrypt using XOR', boxX + 10, yPos);
+
+            // Note
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '10px monospace';
+            yPos += 20;
+            ctx.fillText('Note: S is same as encryption!', boxX + 10, yPos);
+        }
+
+        function enableEncryptionAnimationControls(numSteps) {
+            const controlsDiv = document.getElementById('encryptionAnimControls');
+            controlsDiv.style.display = 'flex';
+
+            const slider = document.getElementById('encryptStepSlider');
+            slider.max = numSteps - 1;
+            slider.value = 0;
+            slider.disabled = false;
+
+            document.getElementById('encryptPrevBtn').disabled = false;
+            document.getElementById('encryptPlayBtn').disabled = false;
+            document.getElementById('encryptNextBtn').disabled = false;
+
+            encryptionState.currentStep = 0;
+            updateEncryptionStepLabel();
+        }
+
+        function prevEncryptionStep() {
+            if (encryptionState.currentStep > 0) {
+                encryptionState.currentStep--;
+                updateEncryptionStepDisplay();
+            }
+        }
+
+        function nextEncryptionStep() {
+            if (encryptionState.currentStep < encryptionState.animationSteps.length - 1) {
+                encryptionState.currentStep++;
+                updateEncryptionStepDisplay();
+            }
+        }
+
+        function toggleEncryptionAnimation() {
+            const btn = document.getElementById('encryptPlayBtn');
+            if (encryptionState.animationTimer) {
+                clearInterval(encryptionState.animationTimer);
+                encryptionState.animationTimer = null;
+                btn.textContent = 'Play';
+            } else {
+                btn.textContent = 'Pause';
+                encryptionState.animationTimer = setInterval(() => {
+                    if (encryptionState.currentStep < encryptionState.animationSteps.length - 1) {
+                        nextEncryptionStep();
+                    } else {
+                        clearInterval(encryptionState.animationTimer);
+                        encryptionState.animationTimer = null;
+                        btn.textContent = 'Play';
+                    }
+                }, 1500);
+            }
+        }
+
+        function onEncryptionSlider(value) {
+            encryptionState.currentStep = parseInt(value);
+            updateEncryptionStepDisplay();
+        }
+
+        function updateEncryptionStepDisplay() {
+            document.getElementById('encryptStepSlider').value = encryptionState.currentStep;
+            updateEncryptionStepLabel();
+
+            // Highlight current step
+            document.querySelectorAll('.step-item').forEach((el, i) => {
+                if (i <= encryptionState.currentStep) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+
+        function updateEncryptionStepLabel() {
+            const label = document.getElementById('encryptStepLabel');
+            label.textContent = (encryptionState.currentStep + 1) + '/' + encryptionState.animationSteps.length;
+        }
+
+        function redrawEncryptionCanvases() {
+            if (encryptionState.currentCiphertext) {
+                drawEncryptionVisualization(encryptionState.currentCiphertext);
             }
         }

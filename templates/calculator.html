@@ -140,8 +140,8 @@
         
         <div class="content">
 
-            <!-- Curve Type Selector -->
-            <div style="text-align: center; margin: 20px 0;">
+            <!-- Curve Type Selector and Encryption Selector -->
+            <div style="text-align: center; margin: 20px 0; display: flex; gap: 20px; justify-content: center; align-items: center;">
                 <div class="curve-selector-dropdown">
                     <button class="curve-selector-btn" id="curveSelectorBtn">
                         <span>Curve type</span>
@@ -150,6 +150,18 @@
                     <div class="curve-dropdown-menu">
                         <div class="curve-dropdown-item active" onclick="selectCurveType('fpTab', 'Curve over Fp')">Curve over Fp</div>
                         <div class="curve-dropdown-item" onclick="selectCurveType('realTab', 'Curve over ℝ')">Curve over ℝ</div>
+                    </div>
+                </div>
+
+                <div class="curve-selector-dropdown">
+                    <button class="curve-selector-btn" id="encryptionSelectorBtn">
+                        <span>Encryption/Decryption</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="curve-dropdown-menu">
+                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('encryptInitPane')">Initialization</div>
+                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('encryptPane')">Encryption</div>
+                        <div class="curve-dropdown-item" onclick="selectEncryptionPane('decryptPane')">Decryption</div>
                     </div>
                 </div>
             </div>
@@ -476,6 +488,112 @@
                 </div>
 
             </div>
+
+            <!-- Encryption Tab -->
+            <div id="encryptionTab" class="tab-pane">
+                <div id="encryptInitPane" class="subtab-pane active">
+                    <div class="panel">
+                        <h2>Setup Encryption</h2>
+                        <div class="form-group">
+                            <label for="encryptionPreset">Preset Curves</label>
+                            <select id="encryptionPreset" onchange="loadEncryptionPreset(this.value)">
+                                <option value="custom">Custom</option>
+                                <option value="e23">E₂₃(1,1) - Tiny example</option>
+                                <option value="e31">E₃₁(2,3) - Small example</option>
+                                <option value="e47" selected>E₄₇(5,7) - Medium example</option>
+                                <option value="e97">E₉₇(2,3) - Larger example</option>
+                            </select>
+                            <small id="encryptionCurveDesc" class="curve-description"></small>
+                        </div>
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="encryptParamA">a</label>
+                                    <input type="number" id="encryptParamA" value="5" placeholder="a">
+                                </div>
+                                <div>
+                                    <label for="encryptParamB">b</label>
+                                    <input type="number" id="encryptParamB" value="7" placeholder="b">
+                                </div>
+                                <div>
+                                    <label for="encryptParamP">p (prime)</label>
+                                    <input type="number" id="encryptParamP" value="47" placeholder="p">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="initEncryptionCurve()">Initialize Encryption System</button>
+                        <div id="encryptionSystemInfo"></div>
+
+                        <div style="margin-top: 20px;">
+                            <h3 style="color: #888; margin-bottom: 10px;">Operations</h3>
+                            <button onclick="selectEncryptionPane('encryptPane')" style="margin-bottom: 10px; width: 100%;" id="encryptOperationBtn" disabled>Encrypt Message</button>
+                            <button onclick="selectEncryptionPane('decryptPane')" style="width: 100%;" id="decryptOperationBtn" disabled>Decrypt Message</button>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <h2>Key Information</h2>
+                        <div id="encryptionKeyInfo"></div>
+                    </div>
+                </div>
+
+                <div id="encryptPane" class="subtab-pane">
+                    <div class="panel">
+                        <button onclick="selectEncryptionPane('encryptInitPane')" style="margin-bottom: 15px;">← Back to Setup</button>
+                        <h2>Encrypt Message</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Encrypt text using elliptic curve cryptography</p>
+                        <div class="form-group">
+                            <label for="plaintextInput">Message to Encrypt</label>
+                            <textarea id="plaintextInput" rows="4" placeholder="Enter your message here..."></textarea>
+                        </div>
+                        <button onclick="encryptMessage()">Encrypt</button>
+                        <div id="encryptionResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Encryption Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Watch the encryption process step by step</p>
+                        <canvas id="encryptionCanvas" width="600" height="500"></canvas>
+                        <div class="steps-toggle-row">
+                            <button id="encryptionToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('encryption')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
+                        <div id="encryptionStepsDisplay" class="steps-display"></div>
+                        <div id="encryptionAnimControls" class="anim-controls" style="display:none;">
+                            <button id="encryptPrevBtn" onclick="prevEncryptionStep()" disabled>Prev</button>
+                            <button id="encryptPlayBtn" onclick="toggleEncryptionAnimation()" disabled>Play</button>
+                            <input id="encryptStepSlider" type="range" min="0" max="0" value="0" disabled oninput="onEncryptionSlider(this.value)">
+                            <button id="encryptNextBtn" onclick="nextEncryptionStep()" disabled>Next</button>
+                            <span id="encryptStepLabel" class="step-label">0/0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="decryptPane" class="subtab-pane">
+                    <div class="panel">
+                        <button onclick="selectEncryptionPane('encryptInitPane')" style="margin-bottom: 15px;">← Back to Setup</button>
+                        <h2>Decrypt Message</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Decrypt ciphertext using your private key</p>
+                        <div class="form-group">
+                            <label for="ciphertextInput">Ciphertext (JSON format)</label>
+                            <textarea id="ciphertextInput" rows="6" placeholder='{"R": {"x": ..., "y": ...}, "encrypted": [...], "iv": ...}'></textarea>
+                        </div>
+                        <button onclick="decryptMessage()">Decrypt</button>
+                        <div id="decryptionResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Decryption Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Watch the decryption process step by step</p>
+                        <canvas id="decryptionCanvas" width="600" height="500"></canvas>
+                        <div class="steps-toggle-row">
+                            <button id="decryptionToggleStepsBtn" class="toggle-steps-btn" type="button" onclick="toggleStepsDisplay('decryption')" data-visible="true">
+                                Hide steps
+                            </button>
+                        </div>
+                        <div id="decryptionStepsDisplay" class="steps-display"></div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
