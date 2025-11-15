@@ -223,10 +223,10 @@
         <div class="content">
 
             <!-- Curve Type Selector, Encryption Selector, and Demonstrations Selector -->
-            <div style="text-align: center; margin: 20px 0; display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap;">
+            <div class="selector-row">
                 <div class="curve-selector-dropdown">
                     <button class="curve-selector-btn" id="curveSelectorBtn">
-                        <span>Curve type</span>
+                        <span>Curve view</span>
                         <span class="dropdown-arrow">▼</span>
                     </button>
                     <div class="curve-dropdown-menu">
@@ -237,7 +237,7 @@
 
                 <div class="curve-selector-dropdown">
                     <button class="curve-selector-btn" id="encryptionSelectorBtn">
-                        <span>Encryption/Decryption</span>
+                        <span>Crypto workflow</span>
                         <span class="dropdown-arrow">▼</span>
                     </button>
                     <div class="curve-dropdown-menu">
@@ -247,7 +247,7 @@
 
                 <div class="curve-selector-dropdown">
                     <button class="curve-selector-btn" id="demonstrationSelectorBtn">
-                        <span>Demonstrations</span>
+                        <span>Interactive demos</span>
                         <span class="dropdown-arrow">▼</span>
                     </button>
                     <div class="curve-dropdown-menu">
@@ -255,6 +255,7 @@
                         <div class="curve-dropdown-item" onclick="selectDemonstrationPane('discreteLogPane', event)">Discrete Logarithm</div>
                     </div>
                 </div>
+
             </div>
 
             <!-- About Modal -->
@@ -266,48 +267,37 @@
                 <div class="panel full-width">
                     <h2>About</h2>
                     <p style="margin-bottom: 12px; color:#ccc;">
-                        This app lets you explore elliptic curves over finite fields. You can generate all points on a curve,
-                        add two points using the group law, and follow scalar multiplication step by step with a clear, discrete visualization.
+                        This interface is designed to cover every major part of elliptic-curve exploration: curve initialization, interactive visualization, operation history, encryption/decryption, and educational demonstrations.
                     </p>
 
                     <div class="math-formula">y² = x³ + ax + b (mod p)</div>
 
-                    <p style="margin: 12px 0; color:#ccc;">
-                        Here, <strong>p</strong> is a prime modulus, and <strong>a</strong>, <strong>b</strong> are integers. All arithmetic (additions,
-                        subtractions, multiplications, divisions) is performed modulo <strong>p</strong>. The set of points that satisfy the equation,
-                        plus a special identity element <strong>O</strong> (the “point at infinity”), forms an abelian group under a well‑defined addition rule.
-                    </p>
-
-                    <h3 style="color:#000000; margin-top:16px;">Key Concepts</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Core Curve Experience</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li><strong>Valid curve:</strong> The discriminant <code>Δ = 4a³ + 27b² (mod p)</code> must be non‑zero to avoid singularities.</li>
-                        <li><strong>Point at infinity (O):</strong> Acts as the identity element: <code>P + O = P</code>.</li>
-                        <li><strong>Negation:</strong> For a point <code>P = (x, y)</code>, its inverse is <code>-P = (x, -y mod p)</code>.</li>
-                        <li><strong>Point addition:</strong> The line through <code>P</code> and <code>Q</code> intersects the curve at a third point; reflect it across the x‑axis to get <code>P + Q</code>. In finite fields, the “line” is an algebraic relation handled with modular arithmetic.</li>
-                        <li><strong>Point doubling:</strong> When <code>P = Q</code>, use the tangent at <code>P</code> to compute <code>2P</code>.</li>
-                        <li><strong>Scalar multiplication:</strong> Repeated addition, efficiently computed via the double‑and‑add method.</li>
+                        <li><strong>Initialization:</strong> Set <code>a</code>, <code>b</code>, and prime <code>p</code>, then “Find All Points” to show the full group including <strong>O</strong>.</li>
+                        <li><strong>Visualization:</strong> Canvases plot each point inside the finite field grid; you can toggle labels, click to select coordinates, and immediately see the geometric behaviour under the group law.</li>
+                        <li><strong>Addition & Multiplication:</strong> Pick points from the list and use the addition/scalar multiplication panels to see the numerical steps, animations, and explanation text together.</li>
+                        <li><strong>Discrete Log / DH demos:</strong> Switch the demonstrator dropdown to replay Diffie–Hellman handshakes or watch a brute-force discrete log attempt with timeline steps.</li>
                     </ul>
 
-                    <h3 style="color:#000000; margin-top:16px;">How to Use This App</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Encryption &amp; History Tracking</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li><strong>Initialization:</strong> Pick <code>a</code>, <code>b</code>, and a prime <code>p</code>, then click “Find All Points on Curve”. The list below shows every point (including <code>O</code>).</li>
-                        <li><strong>Visualization:</strong> The canvases plot all points with axes from <code>0</code> to <code>p−1</code> on both x and y. Use the “Show point labels” toggle to annotate points.</li>
-                        <li><strong>Point Addition:</strong> Choose <code>P</code> and <code>Q</code> to compute <code>P + Q</code>. The result is highlighted on the plot.</li>
-                        <li><strong>Scalar Multiplication:</strong> Choose a point <code>P</code> and scalar <code>k</code>. Step through each intermediate multiple with the controls and slider.</li>
+                        <li><strong>Encryption tab:</strong> Initialize a key pair, then encrypt text or files; the animation highlights R/S generation and you can copy the JSON ciphertext.</li>
+                        <li><strong>Decryption tab:</strong> Paste or upload ciphertext, run decryption with your stored private key, and observe how the shared secret reveals the plaintext.</li>
+                        <li><strong>History panel:</strong> Every curve initialization, addition, multiplication, encryption, and decryption is logged—use the refresh/clear buttons and the unified list to inspect previous operations.</li>
                     </ul>
 
-                    <h3 style="color:#000000; margin-top:16px;">Tips and Notes</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Recent Enhancements</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li>Choose moderate primes (for example, <code>p ≈ 50–200</code>) to keep the plots readable while still showing structure.</li>
-                        <li>If <code>Δ = 0</code> for your parameters, pick a different <code>a</code> and <code>b</code> so the curve is non‑singular.</li>
-                        <li>The “Show point labels” option is off by default to reduce clutter. Turn it on when you need exact coordinates.</li>
-                        <li>All points are plotted in a grid of integers; there are no fractional coordinates in this finite‑field setting.</li>
+                        <li>Theme-aware UI with floating menu and toast notifications for smooth feedback.</li>
+                        <li>Professional icons and centered selectors for a polished experience.</li>
+                        <li>Advanced copy helpers so you can export point lists or ciphertext as JSON/LaTeX.</li>
+                        <li>Mobile-optimized layouts and history animations for clarity on all screens.</li>
                     </ul>
 
                     <h3 style="color:#000000; margin-top:16px;">Why Elliptic Curves?</h3>
                     <p style="margin: 8px 0; color:#ccc;">
-                        Elliptic‑curve groups enable compact, efficient public‑key operations such as key exchange and digital signatures.
-                        Over finite fields, their algebraic structure provides strong security per bit of key size and underpins many modern protocols.
+                        These curves are the heart of modern cryptography: their group structure gives compact, secure keys, and the hardness of discrete logarithms forms the security guarantee. This app puts that algebra front and center.
                     </p>
                 </div>
                     </div>
@@ -506,15 +496,6 @@
                         <div id="curveInfo"></div>
                         <div id="pointsList"></div>
 
-                        <div style="margin-top: 20px;">
-                            <h3 style="color: #888; margin-bottom: 10px;">Utilities</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <button onclick="copyCurveParameters()" class="copy-btn" style="width: 100%; margin: 0;">Copy Params</button>
-                                <button onclick="downloadPointList()" class="copy-btn" style="width: 100%; margin: 0;">Download</button>
-                                <button onclick="generateTestVector()" class="copy-btn" style="width: 100%; margin: 0;">Test Vector</button>
-                                <button onclick="toggleCurveOverlay()" class="copy-btn" style="width: 100%; margin: 0;">Overlay</button>
-                            </div>
-                        </div>
                     </div>
                 </div>
 

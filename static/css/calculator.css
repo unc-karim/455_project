@@ -1351,17 +1351,21 @@
         }
 
         /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .tabs .tab-btn {
-            width: auto;
-            padding: 12px 18px;
-            font-size: 1.05em;
-        }
+.tabs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.tabs .tab-btn {
+    width: auto;
+    padding: 12px 18px;
+    font-size: 1.05em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
         .tabs .tab-btn.active {
             box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
             transform: translateY(-1px);
@@ -1459,6 +1463,29 @@
             background: var(--accent-secondary);
             color: white;
             font-weight: 600;
+        }
+
+        .selector-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+            grid-column: 1 / -1;
+        }
+
+        .curve-selector-dropdown {
+            flex: 1;
+            max-width: 260px;
+        }
+
+        .curve-selector-btn {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
         }
 
         /* About tab */
