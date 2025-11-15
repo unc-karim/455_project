@@ -328,6 +328,117 @@ class EllipticCurve:
         """Developer-friendly representation"""
         return f"EllipticCurve(a={self.a}, b={self.b}, p={self.p})"
 
+    def get_order(self, P):
+        """
+        Find the order of a point P (smallest positive k such that kP = O)
+
+        Args:
+            P: Point on the curve
+
+        Returns:
+            int: Order of the point
+        """
+        if P == (None, None):
+            return 1
+
+        current = P
+        order = 1
+        max_iterations = self.p + 1  # Hasse's theorem: order is at most p + 1
+
+        while current != (None, None) and order < max_iterations:
+            current = self.add_points(current, P)
+            order += 1
+
+        return order if current == (None, None) else -1
+
+    def classify_points(self):
+        """
+        Classify all points on the curve by their properties
+
+        Returns:
+            dict: Contains lists of generators, torsion points, and group order
+        """
+        all_points = self.find_all_points()
+        group_order = len(all_points)
+
+        # Remove point at infinity for analysis
+        finite_points = [p for p in all_points if p != (None, None)]
+
+        generators = []
+        torsion_points = []
+        orders = {}
+
+        for point in finite_points:
+            order = self.get_order(point)
+            orders[point] = order
+
+            # A generator has order equal to group order or a large divisor
+            if order == group_order:
+                generators.append(point)
+
+            # Torsion points have small order (< sqrt(group_order))
+            if order <= max(2, int(group_order ** 0.5)):
+                torsion_points.append(point)
+
+        return {
+            'group_order': group_order,
+            'generators': generators,
+            'torsion_points': torsion_points,
+            'orders': orders
+        }
+
+    def generate_test_vector(self):
+        """
+        Generate a test vector for the curve with sample operations
+
+        Returns:
+            dict: Test vector data
+        """
+        points = self.find_all_points()
+
+        # Pick some non-identity points for testing
+        test_points = [p for p in points if p != (None, None)][:3]
+
+        if len(test_points) < 2:
+            test_points = points[:3]
+
+        P = test_points[0] if len(test_points) > 0 else (None, None)
+        Q = test_points[1] if len(test_points) > 1 else (None, None)
+
+        test_vector = {
+            'curve': {
+                'a': self.a,
+                'b': self.b,
+                'p': self.p,
+                'equation': str(self)
+            },
+            'total_points': len(points),
+            'test_operations': []
+        }
+
+        # Test point addition
+        if P != (None, None) and Q != (None, None):
+            R = self.add_points(P, Q)
+            test_vector['test_operations'].append({
+                'operation': 'addition',
+                'P': {'x': P[0], 'y': P[1]},
+                'Q': {'x': Q[0], 'y': Q[1]},
+                'result': {'x': R[0], 'y': R[1]} if R != (None, None) else {'x': None, 'y': None}
+            })
+
+        # Test scalar multiplication
+        if P != (None, None):
+            k = 5
+            R = self.scalar_multiply(k, P)
+            test_vector['test_operations'].append({
+                'operation': 'scalar_multiplication',
+                'k': k,
+                'P': {'x': P[0], 'y': P[1]},
+                'result': {'x': R[0], 'y': R[1]} if R != (None, None) else {'x': None, 'y': None}
+            })
+
+        return test_vector
+
 
 class RealEllipticCurve:
     """

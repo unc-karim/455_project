@@ -72,6 +72,87 @@
                 </div>
             </div>
 
+            <!-- Learning & Tutorials Section -->
+            <div class="menu-section">
+                <h3 class="menu-section-title">Learning & Tutorials</h3>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="startTutorial('initialization')" title="Learn curve initialization">
+                        <span class="menu-card-icon"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Init Tutorial</span>
+                        <span class="menu-card-hint">Step-by-step</span>
+                    </button>
+                    <button class="menu-card" onclick="startTutorial('point_addition')" title="Learn point addition">
+                        <span class="menu-card-icon"><i class="fa-solid fa-book-open" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Addition Tutorial</span>
+                        <span class="menu-card-hint">Guided walkthrough</span>
+                    </button>
+                    <button class="menu-card" onclick="startTutorial('scalar_multiplication')" title="Learn scalar multiplication">
+                        <span class="menu-card-icon"><i class="fa-solid fa-chalkboard-teacher" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Multiply Tutorial</span>
+                        <span class="menu-card-hint">Interactive guide</span>
+                    </button>
+                    <button class="menu-card" onclick="showPresetsLibrary()" title="Manage curve presets">
+                        <span class="menu-card-icon"><i class="fa-solid fa-bookmark" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Presets Library</span>
+                        <span class="menu-card-hint">Save & load</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Features Section -->
+            <div class="menu-section">
+                <h3 class="menu-section-title">Advanced Features</h3>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="classifyPoints()" title="Classify curve points">
+                        <span class="menu-card-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Classify</span>
+                        <span class="menu-card-hint">Point types</span>
+                    </button>
+                    <button class="menu-card" onclick="demonstrateDiffieHellman()" title="Diffie-Hellman key exchange">
+                        <span class="menu-card-icon"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Diffie-Hellman</span>
+                        <span class="menu-card-hint">Key exchange</span>
+                    </button>
+                    <button class="menu-card" onclick="demonstrateDiscreteLog()" title="Discrete logarithm problem">
+                        <span class="menu-card-icon"><i class="fa-solid fa-calculator" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Discrete Log</span>
+                        <span class="menu-card-hint">Interactive demo</span>
+                    </button>
+                    <button class="menu-card" onclick="showWhyItWorksModal()" title="Learn how ECC works">
+                        <span class="menu-card-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Why It Works</span>
+                        <span class="menu-card-hint">Learn ECC</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Utility Tools Section -->
+            <div class="menu-section">
+                <h3 class="menu-section-title">Utility Tools</h3>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="generateTestVector()" title="Generate test vector">
+                        <span class="menu-card-icon"><i class="fa-solid fa-vial" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Test Vector</span>
+                        <span class="menu-card-hint">Generate</span>
+                    </button>
+                    <button class="menu-card" onclick="copyCurveParameters()" title="Copy curve parameters">
+                        <span class="menu-card-icon"><i class="fa-solid fa-copy" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Copy Params</span>
+                        <span class="menu-card-hint">To clipboard</span>
+                    </button>
+                    <button class="menu-card" onclick="downloadPointList()" title="Download point list">
+                        <span class="menu-card-icon"><i class="fa-solid fa-download" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Download</span>
+                        <span class="menu-card-hint">Point list</span>
+                    </button>
+                    <button class="menu-card" onclick="toggleCurveOverlay()" title="Compare multiple curves">
+                        <span class="menu-card-icon"><i class="fa-solid fa-layer-plus" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Overlay</span>
+                        <span class="menu-card-hint">Compare curves</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- History Section -->
             <div class="menu-section">
                 <div class="menu-section-title-row">
@@ -141,8 +222,8 @@
         
         <div class="content">
 
-            <!-- Curve Type Selector and Encryption Selector -->
-            <div style="text-align: center; margin: 20px 0; display: flex; gap: 20px; justify-content: center; align-items: center;">
+            <!-- Curve Type Selector, Encryption Selector, and Demonstrations Selector -->
+            <div style="text-align: center; margin: 20px 0; display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap;">
                 <div class="curve-selector-dropdown">
                     <button class="curve-selector-btn" id="curveSelectorBtn">
                         <span>Curve type</span>
@@ -161,6 +242,17 @@
                     </button>
                     <div class="curve-dropdown-menu">
                         <div class="curve-dropdown-item active" onclick="selectEncryptionPane('encryptInitPane', event)">Initialization</div>
+                    </div>
+                </div>
+
+                <div class="curve-selector-dropdown">
+                    <button class="curve-selector-btn" id="demonstrationSelectorBtn">
+                        <span>Demonstrations</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="curve-dropdown-menu">
+                        <div class="curve-dropdown-item active" onclick="selectDemonstrationPane('dhDemoPane', event)">Diffie-Hellman</div>
+                        <div class="curve-dropdown-item" onclick="selectDemonstrationPane('discreteLogPane', event)">Discrete Logarithm</div>
                     </div>
                 </div>
             </div>
@@ -405,13 +497,24 @@
                         <div style="margin-top: 20px;">
                             <h3 style="color: #888; margin-bottom: 10px;">Operations</h3>
                             <button onclick="switchSubtab('fp','fpAddPane')" style="margin-bottom: 10px; width: 100%;">Point Addition</button>
-                            <button onclick="switchSubtab('fp','fpMulPane')" style="width: 100%;">Scalar Multiplication</button>
+                            <button onclick="switchSubtab('fp','fpMulPane')" style="width: 100%; margin-bottom: 10px;">Scalar Multiplication</button>
+                            <button onclick="classifyPoints()" style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Classify Points</button>
                         </div>
                     </div>
                     <div class="panel">
                         <h2>Points</h2>
                         <div id="curveInfo"></div>
                         <div id="pointsList"></div>
+
+                        <div style="margin-top: 20px;">
+                            <h3 style="color: #888; margin-bottom: 10px;">Utilities</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <button onclick="copyCurveParameters()" class="copy-btn" style="width: 100%; margin: 0;">Copy Params</button>
+                                <button onclick="downloadPointList()" class="copy-btn" style="width: 100%; margin: 0;">Download</button>
+                                <button onclick="generateTestVector()" class="copy-btn" style="width: 100%; margin: 0;">Test Vector</button>
+                                <button onclick="toggleCurveOverlay()" class="copy-btn" style="width: 100%; margin: 0;">Overlay</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -486,6 +589,108 @@
                     </div>
                 </div>
 
+            </div>
+
+            <!-- Demonstrations Tab -->
+            <div id="demonstrationsTab" class="tab-pane">
+                <div id="dhDemoPane" class="subtab-pane active">
+                    <div class="panel">
+                        <h2>Diffie-Hellman Key Exchange</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Interactive demonstration of ECDH protocol</p>
+
+                        <div class="form-group">
+                            <label for="dhCurvePreset">Preset Curves</label>
+                            <select id="dhCurvePreset" onchange="loadDHPreset(this.value)">
+                                <option value="e23">E₂₃(1,1) - Tiny example</option>
+                                <option value="e31">E₃₁(2,3) - Small example</option>
+                                <option value="e47" selected>E₄₇(5,7) - Medium example</option>
+                                <option value="e97">E₉₇(2,3) - Default</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="dhParamA">a</label>
+                                    <input type="number" id="dhParamA" value="5" placeholder="a">
+                                </div>
+                                <div>
+                                    <label for="dhParamB">b</label>
+                                    <input type="number" id="dhParamB" value="7" placeholder="b">
+                                </div>
+                                <div>
+                                    <label for="dhParamP">p (prime)</label>
+                                    <input type="number" id="dhParamP" value="47" placeholder="p">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="runDiffieHellmanDemo()">Start Diffie-Hellman Demo</button>
+
+                        <div id="dhDemoResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Visualization</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Step-by-step walkthrough</p>
+                        <div id="dhStepsContainer" style="max-height: 500px; overflow-y: auto;"></div>
+
+                        <div id="dhAnimControls" class="anim-controls" style="display:none; margin-top: 20px;">
+                            <button id="dhPrevBtn" onclick="prevDHStep()">Previous</button>
+                            <button id="dhPlayBtn" onclick="playDHAnimation()">Play</button>
+                            <input id="dhStepSlider" type="range" min="0" max="0" value="0" oninput="setDHStep(this.value)">
+                            <button id="dhNextBtn" onclick="nextDHStep()">Next</button>
+                            <span class="step-label" id="dhStepLabel">0/0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="discreteLogPane" class="subtab-pane">
+                    <div class="panel">
+                        <h2>Discrete Logarithm Problem</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Interactive demonstration of computational hardness</p>
+
+                        <div class="form-group">
+                            <label for="dlogCurvePreset">Preset Curves</label>
+                            <select id="dlogCurvePreset" onchange="loadDLogPreset(this.value)">
+                                <option value="e23">E₂₃(1,1) - Tiny example</option>
+                                <option value="e31">E₃₁(2,3) - Small example</option>
+                                <option value="e47" selected>E₄₇(5,7) - Medium example</option>
+                                <option value="e97">E₉₇(2,3) - Default</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="inline-inputs">
+                                <div>
+                                    <label for="dlogParamA">a</label>
+                                    <input type="number" id="dlogParamA" value="5" placeholder="a">
+                                </div>
+                                <div>
+                                    <label for="dlogParamB">b</label>
+                                    <input type="number" id="dlogParamB" value="7" placeholder="b">
+                                </div>
+                                <div>
+                                    <label for="dlogParamP">p (prime)</label>
+                                    <input type="number" id="dlogParamP" value="47" placeholder="p">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="dlogScalar">Scalar k (2-15 recommended)</label>
+                            <input type="number" id="dlogScalar" value="5" min="2" max="20" placeholder="k">
+                        </div>
+
+                        <button onclick="runDiscreteLogDemo()">Start Discrete Log Demo</button>
+
+                        <div id="dlogDemoResult"></div>
+                    </div>
+                    <div class="panel">
+                        <h2>Brute Force Attempts</h2>
+                        <p style="margin-bottom: 15px; color: #888;">Watch the algorithm try to find k</p>
+                        <div id="dlogStepsContainer" style="max-height: 500px; overflow-y: auto;"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Encryption Tab -->

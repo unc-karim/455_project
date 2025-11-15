@@ -7,11 +7,13 @@ import secrets
 
 from flask import Flask, render_template
 
+from advanced_routes import register_advanced_routes
 from auth_routes import register_auth_routes
 from db_helpers import init_db
 from ecc_routes import register_ecc_routes
 from encryption_routes import register_encryption_routes
 from history_routes import register_history_routes
+from tutorials import register_tutorial_routes
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -20,6 +22,8 @@ register_auth_routes(app)
 register_ecc_routes(app)
 register_history_routes(app)
 register_encryption_routes(app)
+register_advanced_routes(app)
+register_tutorial_routes(app)
 
 
 @app.route('/')

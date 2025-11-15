@@ -1919,6 +1919,17 @@
             initValidation();
             // Load initial preset description
             loadCurvePreset('e97');
+            // Initialize custom presets
+            initCustomPresets();
+            // Load completed tutorials
+            const completedTutorials = localStorage.getItem('completed_tutorials');
+            if (completedTutorials) {
+                try {
+                    tutorialState.completed = JSON.parse(completedTutorials);
+                } catch (e) {
+                    tutorialState.completed = [];
+                }
+            }
         };
 
         // Attach click handlers to canvases to show coordinates
@@ -4725,4 +4736,1226 @@ function getOperationIcon(type){
             if (encryptionState.currentCiphertext) {
                 drawEncryptionVisualization(encryptionState.currentCiphertext);
             }
+        }
+
+        // =================== TAB SWITCHING FOR DEMONSTRATIONS =================== //
+
+        function selectDemonstrationPane(paneId, event) {
+            if (event) event.preventDefault();
+
+            // Hide all main tabs
+            document.querySelectorAll('.tab-pane').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show demonstrations tab
+            const demonstrationsTab = document.getElementById('demonstrationsTab');
+            if (demonstrationsTab) {
+                demonstrationsTab.classList.add('active');
+            }
+
+            // Update dropdown menu items
+            const dropdown = document.querySelector('#demonstrationSelectorBtn').nextElementSibling;
+            dropdown.querySelectorAll('.curve-dropdown-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (event && event.target) event.target.classList.add('active');
+
+            // Hide all demonstration panes
+            document.querySelectorAll('#demonstrationsTab .subtab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+
+            // Show selected pane
+            const selectedPane = document.getElementById(paneId);
+            if (selectedPane) {
+                selectedPane.classList.add('active');
+            }
+        }
+
+        function loadDHPreset(presetKey) {
+            const preset = curvePresets[presetKey];
+            if (preset) {
+                document.getElementById('dhParamA').value = preset.a;
+                document.getElementById('dhParamB').value = preset.b;
+                document.getElementById('dhParamP').value = preset.p;
+            }
+        }
+
+        function loadDLogPreset(presetKey) {
+            const preset = curvePresets[presetKey];
+            if (preset) {
+                document.getElementById('dlogParamA').value = preset.a;
+                document.getElementById('dlogParamB').value = preset.b;
+                document.getElementById('dlogParamP').value = preset.p;
+            }
+        }
+
+        // =================== ADVANCED FEATURES: POINT CLASSIFICATION =================== //
+
+        async function classifyPoints() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Please initialize a curve first', 'warning');
+                return;
+            }
+
+            showLoading('Classifying points...', 'Analyzing point properties');
+
+            try {
+                const response = await fetch('/api/classify_points', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    displayPointClassification(data);
+                    showToast('Points classified successfully!', 'success');
+                } else {
+                    showToast(data.error || 'Classification failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error classifying points: ' + error.message, 'error');
+            }
+        }
+
+        function displayPointClassification(data) {
+            const resultDiv = document.getElementById('pointsList') || document.getElementById('curveInfo');
+            if (!resultDiv) return;
+
+            let html = `
+                <div class="result-box">
+                    <h3>Point Classification</h3>
+                    <div class="curve-info">
+                        <p><strong>Group Order:</strong> ${data.group_order}</p>
+                    </div>
+            `;
+
+            if (data.generators && data.generators.length > 0) {
+                html += `
+                    <h4 style="color: var(--accent-secondary); margin-top: 15px;">Generators (Order = ${data.group_order})</h4>
+                    <div style="max-height: 150px; overflow-y: auto;">
+                `;
+                data.generators.slice(0, 10).forEach(pt => {
+                    html += `<div class="point-item" style="border-left-color: #10b981;">(${pt.x}, ${pt.y}) - Order: ${pt.order}</div>`;
+                });
+                if (data.generators.length > 10) {
+                    html += `<p style="color: var(--text-muted); font-size: 0.9em;">...and ${data.generators.length - 10} more</p>`;
+                }
+                html += `</div>`;
+            } else {
+                html += `<p style="color: var(--text-muted);">No generators found</p>`;
+            }
+
+            if (data.torsion_points && data.torsion_points.length > 0) {
+                html += `
+                    <h4 style="color: var(--accent-secondary); margin-top: 15px;">Torsion Points (Small Order)</h4>
+                    <div style="max-height: 150px; overflow-y: auto;">
+                `;
+                data.torsion_points.forEach(pt => {
+                    html += `<div class="point-item" style="border-left-color: #f59e0b;">(${pt.x}, ${pt.y}) - Order: ${pt.order}</div>`;
+                });
+                html += `</div>`;
+            }
+
+            html += `
+                    <div class="copy-btn-group">
+                        <button class="copy-btn" onclick="copyResultAsJSON(${JSON.stringify(data).replace(/"/g, '&quot;')}, 'Classification')">
+                            Copy as JSON
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+            visualizeClassifiedPoints(data);
+        }
+
+        function visualizeClassifiedPoints(data) {
+            const canvas = document.getElementById('additionCanvas');
+            if (!canvas) return;
+
+            const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
+            clearCanvas(ctx, cssWidth, cssHeight);
+            drawAxesGrid(ctx, canvas);
+
+            // Draw all points in gray
+            drawCurvePoints(ctx, canvas, '#8a8a8a', false);
+
+            // Highlight generators in green
+            if (data.generators) {
+                data.generators.forEach(pt => {
+                    drawPoint(ctx, canvas, pt.x, pt.y, '#10b981', 7, '');
+                });
+            }
+
+            // Highlight torsion points in orange
+            if (data.torsion_points) {
+                data.torsion_points.forEach(pt => {
+                    drawPoint(ctx, canvas, pt.x, pt.y, '#f59e0b', 6, '');
+                });
+            }
+        }
+
+        // =================== DIFFIE-HELLMAN KEY EXCHANGE =================== //
+
+        let dhState = {
+            currentStep: 0,
+            steps: [],
+            animationInterval: null
+        };
+
+        async function demonstrateDiffieHellman() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Please initialize a curve first', 'warning');
+                return;
+            }
+
+            showLoading('Setting up Diffie-Hellman...', 'Generating keys');
+
+            try {
+                const response = await fetch('/api/diffie_hellman', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    dhState.steps = data.steps;
+                    dhState.currentStep = 0;
+                    displayDiffieHellmanDemo(data);
+                    showToast('Diffie-Hellman demonstration ready!', 'success');
+                } else {
+                    showToast(data.error || 'Diffie-Hellman demo failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayDiffieHellmanDemo(data) {
+            // Open educational modal with Diffie-Hellman content
+            const modal = document.getElementById('aboutModal');
+            const modalBody = modal.querySelector('.about-modal-body');
+
+            let html = `
+                <div class="panel full-width">
+                    <h2>Diffie-Hellman Key Exchange</h2>
+                    <p style="margin-bottom: 15px; color:#ccc;">
+                        Watch how Alice and Bob establish a shared secret without ever transmitting it!
+                    </p>
+
+                    <div id="dhSteps" class="steps-container">
+            `;
+
+            data.steps.forEach((step, index) => {
+                const isActive = index === dhState.currentStep ? 'active' : '';
+                html += `
+                    <div class="step-item ${isActive}" id="dh-step-${index}">
+                        <div class="step-header">
+                            <span>Step ${step.step}: ${step.description}</span>
+                        </div>
+                        <div class="step-content">
+                            ${step.detail}
+                            ${step.calculation ? '<br><code>' + step.calculation + '</code>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+
+                    <div class="anim-controls" style="margin-top: 20px; display: grid;">
+                        <button onclick="prevDHStep()">Previous</button>
+                        <button onclick="playDHAnimation()" id="dhPlayBtn">Play</button>
+                        <input type="range" id="dhStepSlider" min="0" max="${data.steps.length - 1}" value="0" oninput="setDHStep(this.value)">
+                        <button onclick="nextDHStep()">Next</button>
+                        <span class="step-label" id="dhStepLabel">1/${data.steps.length}</span>
+                    </div>
+
+                    <div class="result-box" style="margin-top: 20px;">
+                        <h3>Summary</h3>
+                        <p><strong>Base Point (G):</strong> (${data.summary.base_point.x}, ${data.summary.base_point.y})</p>
+                        <p><strong>Alice's Private Key:</strong> ${data.summary.alice_private}</p>
+                        <p><strong>Bob's Private Key:</strong> ${data.summary.bob_private}</p>
+                        <p style="color: #10b981;"><strong>Shared Secret:</strong> (${data.summary.shared_secret.x}, ${data.summary.shared_secret.y})</p>
+                    </div>
+                </div>
+            `;
+
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        // For demonstration tab
+        async function runDiffieHellmanDemo() {
+            const a = parseInt(document.getElementById('dhParamA').value);
+            const b = parseInt(document.getElementById('dhParamB').value);
+            const p = parseInt(document.getElementById('dhParamP').value);
+
+            if (isNaN(a) || isNaN(b) || isNaN(p)) {
+                showToast('Please enter valid curve parameters', 'error');
+                return;
+            }
+
+            showLoading('Setting up Diffie-Hellman...', 'Generating keys');
+
+            try {
+                const response = await fetch('/api/diffie_hellman', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ a, b, p })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    dhState.steps = data.steps;
+                    dhState.currentStep = 0;
+                    displayDiffieHellmanInTab(data);
+                    showToast('Diffie-Hellman demonstration ready!', 'success');
+                } else {
+                    showToast(data.error || 'Diffie-Hellman demo failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayDiffieHellmanInTab(data) {
+            const container = document.getElementById('dhStepsContainer');
+            const resultDiv = document.getElementById('dhDemoResult');
+
+            let html = '<div class="steps-container">';
+            data.steps.forEach((step, index) => {
+                const isActive = index === dhState.currentStep ? 'active' : '';
+                html += `
+                    <div class="step-item ${isActive}" id="dh-tab-step-${index}">
+                        <div class="step-header">
+                            <span>Step ${step.step}: ${step.description}</span>
+                        </div>
+                        <div class="step-content">
+                            ${step.detail}
+                            ${step.calculation ? '<br><code>' + step.calculation + '</code>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            container.innerHTML = html;
+
+            // Show summary
+            resultDiv.innerHTML = `
+                <div class="result-box" style="margin-top: 20px;">
+                    <h3>Summary</h3>
+                    <p><strong>Base Point (G):</strong> (${data.summary.base_point.x}, ${data.summary.base_point.y})</p>
+                    <p><strong>Alice's Private Key:</strong> ${data.summary.alice_private}</p>
+                    <p><strong>Bob's Private Key:</strong> ${data.summary.bob_private}</p>
+                    <p style="color: #10b981;"><strong>Shared Secret:</strong> (${data.summary.shared_secret.x}, ${data.summary.shared_secret.y})</p>
+                </div>
+            `;
+
+            // Show animation controls
+            const controls = document.getElementById('dhAnimControls');
+            controls.style.display = 'grid';
+
+            const slider = document.getElementById('dhStepSlider');
+            slider.max = data.steps.length - 1;
+            slider.value = 0;
+
+            updateDHStepDisplay();
+        }
+
+        function prevDHStep() {
+            if (dhState.currentStep > 0) {
+                dhState.currentStep--;
+                updateDHStepDisplay();
+            }
+        }
+
+        function nextDHStep() {
+            if (dhState.currentStep < dhState.steps.length - 1) {
+                dhState.currentStep++;
+                updateDHStepDisplay();
+            }
+        }
+
+        function setDHStep(value) {
+            dhState.currentStep = parseInt(value);
+            updateDHStepDisplay();
+        }
+
+        function playDHAnimation() {
+            if (dhState.animationInterval) {
+                clearInterval(dhState.animationInterval);
+                dhState.animationInterval = null;
+                document.getElementById('dhPlayBtn').textContent = 'Play';
+            } else {
+                document.getElementById('dhPlayBtn').textContent = 'Pause';
+                dhState.animationInterval = setInterval(() => {
+                    if (dhState.currentStep < dhState.steps.length - 1) {
+                        nextDHStep();
+                    } else {
+                        clearInterval(dhState.animationInterval);
+                        dhState.animationInterval = null;
+                        document.getElementById('dhPlayBtn').textContent = 'Play';
+                        dhState.currentStep = 0;
+                    }
+                }, 1500);
+            }
+        }
+
+        function updateDHStepDisplay() {
+            // Update both modal and tab versions
+            document.querySelectorAll('#dhSteps .step-item, #dhStepsContainer .step-item').forEach((el, i) => {
+                if (i <= dhState.currentStep) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+
+            const slider = document.getElementById('dhStepSlider');
+            const label = document.getElementById('dhStepLabel');
+
+            if (slider) slider.value = dhState.currentStep;
+            if (label) label.textContent = `${dhState.currentStep + 1}/${dhState.steps.length}`;
+        }
+
+        // =================== DISCRETE LOGARITHM DEMONSTRATION =================== //
+
+        async function demonstrateDiscreteLog() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Please initialize a curve first', 'warning');
+                return;
+            }
+
+            showLoading('Setting up discrete log demo...', 'Finding points');
+
+            try {
+                const k = parseInt(prompt('Enter a scalar k (2-15):', '5')) || 5;
+
+                const response = await fetch('/api/discrete_log_demo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p,
+                        k: k
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    displayDiscreteLogDemo(data);
+                    showToast('Discrete logarithm demo ready!', 'success');
+                } else {
+                    showToast(data.error || 'Demo failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayDiscreteLogDemo(data) {
+            const modal = document.getElementById('aboutModal');
+            const modalBody = modal.querySelector('.about-modal-body');
+
+            let html = `
+                <div class="panel full-width">
+                    <h2>Discrete Logarithm Problem</h2>
+                    <p style="margin-bottom: 15px; color:#ccc;">
+                        ${data.problem.description}
+                    </p>
+
+                    <div class="result-box">
+                        <p><strong>Given Point P:</strong> (${data.problem.P.x}, ${data.problem.P.y})</p>
+                        <p><strong>Target Point Q:</strong> (${data.problem.Q.x ?? 'O'}, ${data.problem.Q.y ?? 'O'})</p>
+                        <p style="color: #10b981;"><strong>Solution:</strong> k = ${data.solution.k}</p>
+                    </div>
+
+                    <h3 style="margin-top: 20px; color: var(--text-primary);">Brute Force Attempts:</h3>
+                    <div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+            `;
+
+            data.attempts.forEach(attempt => {
+                const matchStyle = attempt.match ? 'border-left-color: #10b981; background: var(--result-bg);' : '';
+                const matchIcon = attempt.match ? ' ✓' : '';
+                html += `
+                    <div class="step-item" style="${matchStyle}">
+                        <div class="step-content">
+                            k = ${attempt.k}: (${attempt.result.x ?? 'O'}, ${attempt.result.y ?? 'O'})${matchIcon}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                    <p style="margin-top: 15px; color: var(--text-muted); font-size: 0.9em;">
+                        ${data.complexity_note}
+                    </p>
+                </div>
+            `;
+
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        // For demonstration tab
+        async function runDiscreteLogDemo() {
+            const a = parseInt(document.getElementById('dlogParamA').value);
+            const b = parseInt(document.getElementById('dlogParamB').value);
+            const p = parseInt(document.getElementById('dlogParamP').value);
+            const k = parseInt(document.getElementById('dlogScalar').value);
+
+            if (isNaN(a) || isNaN(b) || isNaN(p) || isNaN(k)) {
+                showToast('Please enter valid parameters', 'error');
+                return;
+            }
+
+            showLoading('Setting up discrete log demo...', 'Finding points');
+
+            try {
+                const response = await fetch('/api/discrete_log_demo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ a, b, p, k })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    displayDiscreteLogInTab(data);
+                    showToast('Discrete logarithm demo ready!', 'success');
+                } else {
+                    showToast(data.error || 'Demo failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function displayDiscreteLogInTab(data) {
+            const container = document.getElementById('dlogStepsContainer');
+            const resultDiv = document.getElementById('dlogDemoResult');
+
+            // Show problem statement
+            resultDiv.innerHTML = `
+                <div class="result-box" style="margin-top: 20px;">
+                    <h3>Problem</h3>
+                    <p><strong>Given Point P:</strong> (${data.problem.P.x}, ${data.problem.P.y})</p>
+                    <p><strong>Target Point Q:</strong> (${data.problem.Q.x ?? 'O'}, ${data.problem.Q.y ?? 'O'})</p>
+                    <p><strong>Task:</strong> ${data.problem.description}</p>
+                    <hr style="margin: 15px 0; border: none; border-top: 1px solid var(--border-color);">
+                    <p style="color: #10b981;"><strong>Solution:</strong> k = ${data.solution.k}</p>
+                    <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 10px;">
+                        ${data.complexity_note}
+                    </p>
+                </div>
+            `;
+
+            // Show attempts
+            let html = '';
+            data.attempts.forEach(attempt => {
+                const matchStyle = attempt.match ? 'border-left-color: #10b981; background: var(--result-bg);' : '';
+                const matchIcon = attempt.match ? ' ✓' : '';
+                html += `
+                    <div class="step-item" style="${matchStyle}">
+                        <div class="step-content">
+                            <strong>Attempt ${attempt.k}:</strong> ${attempt.k} × P = (${attempt.result.x ?? 'O'}, ${attempt.result.y ?? 'O'})${matchIcon}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // =================== EDUCATIONAL MODAL: "WHY IT WORKS" =================== //
+
+        function showWhyItWorksModal() {
+            const modal = document.getElementById('aboutModal');
+            const modalBody = modal.querySelector('.about-modal-body');
+
+            const html = `
+                <div class="panel full-width">
+                    <h2>Why Elliptic Curves Work for Cryptography</h2>
+
+                    <h3 style="color: var(--text-primary); margin-top: 20px;">The Group Law</h3>
+                    <p style="color: #ccc; line-height: 1.8;">
+                        Elliptic curves form an <strong>abelian group</strong> under point addition. This means:
+                    </p>
+                    <ul style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                        <li><strong>Closure:</strong> Adding two points on the curve gives another point on the curve</li>
+                        <li><strong>Associativity:</strong> (P + Q) + R = P + (Q + R)</li>
+                        <li><strong>Identity:</strong> The point at infinity O acts as the identity: P + O = P</li>
+                        <li><strong>Inverses:</strong> Every point P has an inverse -P such that P + (-P) = O</li>
+                        <li><strong>Commutativity:</strong> P + Q = Q + P</li>
+                    </ul>
+
+                    <h3 style="color: var(--text-primary); margin-top: 20px;">Point Addition Geometry</h3>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <p style="color: #ccc; margin-bottom: 10px;"><strong>To add P + Q:</strong></p>
+                        <ol style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                            <li>Draw a line through points P and Q</li>
+                            <li>Find where this line intersects the curve at a third point R'</li>
+                            <li>Reflect R' across the x-axis to get R = P + Q</li>
+                        </ol>
+                    </div>
+
+                    <h3 style="color: var(--text-primary); margin-top: 20px;">The Discrete Logarithm Problem</h3>
+                    <p style="color: #ccc; line-height: 1.8;">
+                        Security relies on the <strong>discrete logarithm problem (DLP)</strong>:
+                    </p>
+                    <div class="math-formula">
+                        Given P and Q = kP, find k
+                    </div>
+                    <p style="color: #ccc; line-height: 1.8;">
+                        While computing Q = kP is fast (using double-and-add), finding k given P and Q is
+                        computationally hard for large curves. This one-way property enables:
+                    </p>
+                    <ul style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                        <li><strong>Key Exchange:</strong> Diffie-Hellman ECDH</li>
+                        <li><strong>Digital Signatures:</strong> ECDSA</li>
+                        <li><strong>Encryption:</strong> ECIES</li>
+                    </ul>
+
+                    <h3 style="color: var(--text-primary); margin-top: 20px;">Why Smaller Keys?</h3>
+                    <p style="color: #ccc; line-height: 1.8;">
+                        Elliptic curve cryptography provides equivalent security to RSA with much smaller key sizes:
+                    </p>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <ul style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                            <li>256-bit ECC ≈ 3072-bit RSA (128-bit security)</li>
+                            <li>384-bit ECC ≈ 7680-bit RSA (192-bit security)</li>
+                            <li>521-bit ECC ≈ 15360-bit RSA (256-bit security)</li>
+                        </ul>
+                    </div>
+                    <p style="color: #ccc; line-height: 1.8;">
+                        This makes ECC ideal for mobile devices, IoT, and bandwidth-constrained environments.
+                    </p>
+
+                    <h3 style="color: var(--text-primary); margin-top: 20px;">Real-World Applications</h3>
+                    <ul style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                        <li><strong>Bitcoin & Cryptocurrencies:</strong> Uses secp256k1 curve for signatures</li>
+                        <li><strong>TLS/SSL:</strong> ECDHE for perfect forward secrecy</li>
+                        <li><strong>Signal & WhatsApp:</strong> X25519 for key agreement</li>
+                        <li><strong>Apple iMessage:</strong> ECC for end-to-end encryption</li>
+                    </ul>
+                </div>
+            `;
+
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        // =================== UTILITY FUNCTIONS: EXPORT & DOWNLOAD =================== //
+
+        async function generateTestVector() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Please initialize a curve first', 'warning');
+                return;
+            }
+
+            showLoading('Generating test vector...', 'Creating sample operations');
+
+            try {
+                const response = await fetch('/api/generate_test_vector', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    downloadJSON(data.test_vector, `test_vector_E${currentCurve.p}(${currentCurve.a},${currentCurve.b}).json`);
+                    showToast('Test vector generated and downloaded!', 'success');
+                } else {
+                    showToast(data.error || 'Failed to generate test vector', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function copyCurveParameters() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Please initialize a curve first', 'warning');
+                return;
+            }
+
+            const params = {
+                equation: `y² ≡ x³ + ${currentCurve.a}x + ${currentCurve.b} (mod ${currentCurve.p})`,
+                parameters: {
+                    a: currentCurve.a,
+                    b: currentCurve.b,
+                    p: currentCurve.p
+                },
+                total_points: currentPoints.length
+            };
+
+            await copyToClipboard(JSON.stringify(params, null, 2), 'Curve parameters copied!');
+        }
+
+        async function downloadPointList() {
+            if (!currentPoints || currentPoints.length === 0) {
+                showToast('Please find points first', 'warning');
+                return;
+            }
+
+            const format = prompt('Enter format (json or csv):', 'json');
+
+            if (format === 'csv') {
+                let csv = 'x,y\n';
+                currentPoints.forEach(pt => {
+                    if (pt.x === null) {
+                        csv += 'O,O\n';
+                    } else {
+                        csv += `${pt.x},${pt.y}\n`;
+                    }
+                });
+                downloadText(csv, `points_E${currentCurve.p}(${currentCurve.a},${currentCurve.b}).csv`, 'text/csv');
+                showToast('Point list downloaded as CSV!', 'success');
+            } else {
+                const data = {
+                    curve: {
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p
+                    },
+                    points: currentPoints,
+                    count: currentPoints.length
+                };
+                downloadJSON(data, `points_E${currentCurve.p}(${currentCurve.a},${currentCurve.b}).json`);
+                showToast('Point list downloaded as JSON!', 'success');
+            }
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadText(text, filename, mimeType = 'text/plain') {
+            const blob = new Blob([text], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // =================== STRUCTURED TUTORIALS SYSTEM =================== //
+
+        let tutorialState = {
+            active: false,
+            currentTutorial: null,
+            currentStep: 0,
+            completed: []
+        };
+
+        async function startTutorial(type) {
+            try {
+                const response = await fetch('/api/get_tutorial', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    tutorialState.active = true;
+                    tutorialState.currentTutorial = data.tutorial;
+                    tutorialState.currentStep = 0;
+                    displayTutorial();
+                    showToast(`Tutorial started: ${data.tutorial.title}`, 'success');
+                } else {
+                    showToast('Failed to load tutorial', 'error');
+                }
+            } catch (error) {
+                showToast('Error loading tutorial: ' + error.message, 'error');
+            }
+        }
+
+        function displayTutorial() {
+            const modal = document.getElementById('aboutModal');
+            const modalBody = modal.querySelector('.about-modal-body');
+
+            const tutorial = tutorialState.currentTutorial;
+            const step = tutorial.steps[tutorialState.currentStep];
+
+            let html = `
+                <div class="tutorial-container">
+                    <div class="tutorial-header">
+                        <h2>${tutorial.title}</h2>
+                        <p style="color: #888;">${tutorial.description}</p>
+                        <div class="tutorial-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${((tutorialState.currentStep + 1) / tutorial.steps.length) * 100}%"></div>
+                            </div>
+                            <span class="progress-text">Step ${tutorialState.currentStep + 1} of ${tutorial.steps.length}</span>
+                        </div>
+                    </div>
+
+                    <div class="tutorial-step">
+                        <h3>Step ${step.step}: ${step.title}</h3>
+                        <div class="tutorial-content">
+                            ${step.content.replace(/\n/g, '<br>')}
+                        </div>
+
+                        ${step.interactive ? `
+                            <div class="tutorial-action">
+                                <i class="fa-solid fa-hand-pointer" style="color: #10b981;"></i>
+                                <span style="color: #10b981; font-weight: bold;">Action Required:</span> ${step.action}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="tutorial-nav">
+                        <button onclick="prevTutorialStep()" ${tutorialState.currentStep === 0 ? 'disabled' : ''}>
+                            <i class="fa-solid fa-arrow-left"></i> Previous
+                        </button>
+                        ${tutorialState.currentStep < tutorial.steps.length - 1 ? `
+                            <button onclick="nextTutorialStep()" class="btn-primary">
+                                Next <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        ` : `
+                            <button onclick="completeTutorial()" class="btn-success">
+                                <i class="fa-solid fa-check"></i> Complete Tutorial
+                            </button>
+                        `}
+                        <button onclick="exitTutorial()" class="btn-secondary">Exit</button>
+                    </div>
+
+                    ${step.interactive && step.button ? `
+                        <div class="tutorial-hint">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            Click the "${step.button}" button to proceed
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        function nextTutorialStep() {
+            if (tutorialState.currentStep < tutorialState.currentTutorial.steps.length - 1) {
+                tutorialState.currentStep++;
+                displayTutorial();
+            }
+        }
+
+        function prevTutorialStep() {
+            if (tutorialState.currentStep > 0) {
+                tutorialState.currentStep--;
+                displayTutorial();
+            }
+        }
+
+        function completeTutorial() {
+            const tutorialType = tutorialState.currentTutorial.title;
+            tutorialState.completed.push(tutorialType);
+            localStorage.setItem('completed_tutorials', JSON.stringify(tutorialState.completed));
+
+            showToast(`Congratulations! You completed: ${tutorialType}`, 'success');
+            exitTutorial();
+        }
+
+        function exitTutorial() {
+            tutorialState.active = false;
+            tutorialState.currentTutorial = null;
+            tutorialState.currentStep = 0;
+            closeAboutModal();
+        }
+
+        // =================== CURVE PRESETS LIBRARY =================== //
+
+        let customPresets = [];
+
+        function initCustomPresets() {
+            const saved = localStorage.getItem('custom_curve_presets');
+            if (saved) {
+                try {
+                    customPresets = JSON.parse(saved);
+                } catch (e) {
+                    customPresets = [];
+                }
+            }
+        }
+
+        function saveCurrentCurveAsPreset() {
+            if (!currentCurve || !currentCurve.p) {
+                showToast('Initialize a curve first', 'warning');
+                return;
+            }
+
+            const name = prompt('Enter a name for this preset:', `Custom_${customPresets.length + 1}`);
+            if (!name) return;
+
+            const description = prompt('Enter a description (optional):', 'My custom curve');
+            const security = prompt('Security notes (optional):', 'Educational use only');
+
+            const preset = {
+                id: Date.now(),
+                name: name,
+                a: currentCurve.a,
+                b: currentCurve.b,
+                p: currentCurve.p,
+                description: description || 'Custom curve',
+                security: security || 'Not evaluated',
+                created: new Date().toISOString(),
+                pointCount: currentPoints?.length || 0
+            };
+
+            customPresets.push(preset);
+            localStorage.setItem('custom_curve_presets', JSON.stringify(customPresets));
+            showToast(`Preset "${name}" saved!`, 'success');
+            updateCustomPresetsUI();
+        }
+
+        function loadCustomPreset(id) {
+            const preset = customPresets.find(p => p.id === id);
+            if (!preset) {
+                showToast('Preset not found', 'error');
+                return;
+            }
+
+            document.getElementById('paramA').value = preset.a;
+            document.getElementById('paramB').value = preset.b;
+            document.getElementById('paramP').value = preset.p;
+            document.getElementById('curveDescription').textContent = preset.description;
+            document.getElementById('curvePreset').value = 'custom';
+
+            showToast(`Loaded preset: ${preset.name}`, 'success');
+        }
+
+        function deleteCustomPreset(id) {
+            if (!confirm('Delete this preset?')) return;
+
+            customPresets = customPresets.filter(p => p.id !== id);
+            localStorage.setItem('custom_curve_presets', JSON.stringify(customPresets));
+            showToast('Preset deleted', 'success');
+            updateCustomPresetsUI();
+        }
+
+        function updateCustomPresetsUI() {
+            // This will be called to refresh the presets dropdown
+            const container = document.getElementById('customPresetsContainer');
+            if (!container) return;
+
+            let html = '<h4 style="color: var(--text-primary); margin-top: 15px;">My Saved Presets</h4>';
+
+            if (customPresets.length === 0) {
+                html += '<p style="color: var(--text-muted);">No saved presets yet</p>';
+            } else {
+                html += '<div class="presets-list">';
+                customPresets.forEach(preset => {
+                    html += `
+                        <div class="preset-item">
+                            <div class="preset-info">
+                                <strong>${preset.name}</strong>
+                                <span>E_${preset.p}(${preset.a}, ${preset.b})</span>
+                                <small>${preset.description}</small>
+                            </div>
+                            <div class="preset-actions">
+                                <button onclick="loadCustomPreset(${preset.id})" class="btn-sm">Load</button>
+                                <button onclick="deleteCustomPreset(${preset.id})" class="btn-sm btn-danger">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        function showPresetsLibrary() {
+            const modal = document.getElementById('aboutModal');
+            const modalBody = modal.querySelector('.about-modal-body');
+
+            let html = `
+                <div class="presets-library">
+                    <h2>Curve Presets Library</h2>
+                    <p style="color: #888; margin-bottom: 20px;">Save and manage your favorite curve configurations</p>
+
+                    <div class="presets-section">
+                        <h3>Built-in Presets</h3>
+                        <div class="presets-grid">
+            `;
+
+            Object.entries(curvePresets).forEach(([key, preset]) => {
+                html += `
+                    <div class="preset-card" onclick="loadCurvePreset('${key}'); closeAboutModal();">
+                        <h4>${key.toUpperCase()}</h4>
+                        <div class="preset-params">E_${preset.p}(${preset.a}, ${preset.b})</div>
+                        <p>${preset.description}</p>
+                    </div>
+                `;
+            });
+
+            html += `
+                        </div>
+                    </div>
+
+                    <div class="presets-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Custom Presets</h3>
+                            <button onclick="saveCurrentCurveAsPreset()" class="btn-primary">
+                                <i class="fa-solid fa-plus"></i> Save Current Curve
+                            </button>
+                        </div>
+                        <div id="customPresetsContainer"></div>
+                    </div>
+                </div>
+            `;
+
+            modalBody.innerHTML = html;
+            modal.classList.add('active');
+            updateCustomPresetsUI();
+        }
+
+        // =================== EXPORTABLE MATH (LATEX & JSON) =================== //
+
+        function exportResultAsLaTeX(data, operationType) {
+            let latex = '';
+
+            if (operationType === 'addition') {
+                const P = data.P || data.p1;
+                const Q = data.Q || data.p2;
+                const R = data.result;
+
+                latex = `\\text{Point Addition on } E_{${currentCurve.p}}(${currentCurve.a}, ${currentCurve.b})\n\n`;
+                latex += `P = ${formatPointLaTeX(P)}\n`;
+                latex += `Q = ${formatPointLaTeX(Q)}\n`;
+                latex += `P + Q = ${formatPointLaTeX(R)}\n\n`;
+
+                if (data.steps) {
+                    latex += `\\text{Steps:}\n`;
+                    data.steps.forEach((step, i) => {
+                        latex += `${i + 1}. \\text{${step}}\n`;
+                    });
+                }
+            } else if (operationType === 'multiplication') {
+                const k = data.k;
+                const P = data.point || data.P;
+                const R = data.result;
+
+                latex += `\\text{Scalar Multiplication on } E_{${currentCurve.p}}(${currentCurve.a}, ${currentCurve.b})\n\n`;
+                latex += `k = ${k}\n`;
+                latex += `P = ${formatPointLaTeX(P)}\n`;
+                latex += `${k}P = ${formatPointLaTeX(R)}\n`;
+            } else if (operationType === 'curve') {
+                latex += `E_{${currentCurve.p}}(${currentCurve.a}, ${currentCurve.b}): y^2 \\equiv x^3 + ${currentCurve.a}x + ${currentCurve.b} \\pmod{${currentCurve.p}}\n\n`;
+                latex += `\\text{Total Points: } ${currentPoints.length}\n`;
+            }
+
+            copyToClipboard(latex, 'LaTeX copied to clipboard!');
+        }
+
+        function formatPointLaTeX(point) {
+            if (!point || point.x === null || point.x === undefined) {
+                return '\\mathcal{O}';
+            }
+            return `(${point.x}, ${point.y})`;
+        }
+
+        function exportResultAsJSON(data, operationType) {
+            const exportData = {
+                curve: {
+                    a: currentCurve.a,
+                    b: currentCurve.b,
+                    p: currentCurve.p,
+                    equation: `y² ≡ x³ + ${currentCurve.a}x + ${currentCurve.b} (mod ${currentCurve.p})`
+                },
+                operation: operationType,
+                timestamp: new Date().toISOString(),
+                data: data
+            };
+
+            const json = JSON.stringify(exportData, null, 2);
+            copyToClipboard(json, 'JSON copied to clipboard!');
+        }
+
+        function addExportButtons(containerId, data, operationType) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const exportDiv = document.createElement('div');
+            exportDiv.className = 'export-buttons';
+            exportDiv.innerHTML = `
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">Export Options</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick='exportResultAsLaTeX(${JSON.stringify(data).replace(/'/g, "\\'")}," + "'${operationType}')\" class=\"copy-btn\">
+                            <i class=\"fa-solid fa-file-code\"></i> Copy as LaTeX
+                        </button>
+                        <button onclick='exportResultAsJSON(${JSON.stringify(data).replace(/'/g, "\\'")}," + "'${operationType}')\" class=\"copy-btn\">
+                            <i class=\"fa-solid fa-file-export\"></i> Copy as JSON
+                        </button>
+                        <button onclick='downloadResultPDF(${JSON.stringify(data).replace(/'/g, "\\'")}," + "'${operationType}')\" class=\"copy-btn\">
+                            <i class=\"fa-solid fa-file-pdf\"></i> Download PDF
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Check if export buttons already exist
+            const existing = container.querySelector('.export-buttons');
+            if (existing) {
+                existing.remove();
+            }
+
+            container.appendChild(exportDiv);
+        }
+
+        function downloadResultPDF(data, operationType) {
+            // For now, create a simple text version
+            // In a real implementation, you'd generate a proper PDF
+            let content = `Elliptic Curve Calculator - ${operationType}\n\n`;
+            content += `Curve: E_${currentCurve.p}(${currentCurve.a}, ${currentCurve.b})\n`;
+            content += `Equation: y² ≡ x³ + ${currentCurve.a}x + ${currentCurve.b} (mod ${currentCurve.p})\n\n`;
+            content += `Result:\n${JSON.stringify(data, null, 2)}`;
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ecc_${operationType}_${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Result downloaded!', 'success');
+        }
+
+        // =================== CURVE OVERLAY / COMPARISON =================== //
+
+        let overlayState = {
+            curves: [], // Array of {a, b, p, points, color}
+            enabled: false
+        };
+
+        function toggleCurveOverlay() {
+            overlayState.enabled = !overlayState.enabled;
+
+            if (overlayState.enabled && overlayState.curves.length === 0) {
+                // Add current curve as first overlay
+                if (currentCurve && currentPoints) {
+                    overlayState.curves.push({
+                        a: currentCurve.a,
+                        b: currentCurve.b,
+                        p: currentCurve.p,
+                        points: [...currentPoints],
+                        color: '#2563eb'
+                    });
+                }
+                showToast('Curve overlay enabled! Current curve saved.', 'info');
+            }
+
+            if (overlayState.enabled) {
+                showToast('Add another curve to compare, then click "Show Overlay"', 'info');
+            } else {
+                overlayState.curves = [];
+                redrawAllCurves();
+                showToast('Curve overlay disabled', 'info');
+            }
+        }
+
+        function addCurrentCurveToOverlay() {
+            if (!currentCurve || !currentPoints) {
+                showToast('Initialize a curve first', 'warning');
+                return;
+            }
+
+            const colors = ['#2563eb', '#f97316', '#10b981', '#8b5cf6', '#ec4899'];
+            const color = colors[overlayState.curves.length % colors.length];
+
+            overlayState.curves.push({
+                a: currentCurve.a,
+                b: currentCurve.b,
+                p: currentCurve.p,
+                points: [...currentPoints],
+                color: color
+            });
+
+            showToast(`Curve ${overlayState.curves.length} added to overlay`, 'success');
+            drawOverlayCurves();
+        }
+
+        function drawOverlayCurves() {
+            if (!overlayState.enabled || overlayState.curves.length === 0) {
+                return;
+            }
+
+            const canvas = document.getElementById('additionCanvas');
+            if (!canvas) return;
+
+            const { ctx, cssWidth, cssHeight } = setupCanvas(canvas);
+            clearCanvas(ctx, cssWidth, cssHeight);
+            drawAxesGrid(ctx, canvas);
+
+            // Draw each curve with its color
+            overlayState.curves.forEach((curve, index) => {
+                curve.points.forEach(pt => {
+                    if (pt.x !== null) {
+                        drawPoint(ctx, canvas, pt.x, pt.y, curve.color, 4, '');
+                    }
+                });
+            });
+
+            // Add legend
+            const padding = 50;
+            let legendY = padding + 20;
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+
+            overlayState.curves.forEach((curve, index) => {
+                ctx.fillStyle = curve.color;
+                ctx.fillRect(padding + 10, legendY, 10, 10);
+                ctx.fillStyle = '#ccc';
+                ctx.fillText(`E${curve.p}(${curve.a},${curve.b})`, padding + 25, legendY + 9);
+                legendY += 20;
+            });
         }
