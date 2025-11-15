@@ -92,9 +92,11 @@
         }
 
         function updateThemeIcon(theme) {
-            const icons = document.querySelectorAll('.theme-icon');
-            icons.forEach(icon => {
-                icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+            document.querySelectorAll('.theme-icon i, .theme-icon').forEach(el => {
+                const icon = el.tagName === 'I' ? el : el.querySelector('i');
+                if (icon) {
+                    icon.className = `fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`;
+                }
             });
         }
 
@@ -3097,13 +3099,13 @@
             }
         }
 
-        function getOperationIcon(type){
-            if (!type) return '📝';
-            if (type.includes('add')) return '➕';
-            if (type.includes('multiply')) return '✖️';
-            if (type.includes('init')) return '📐';
-            return '📝';
-        }
+function getOperationIcon(type){
+    if (!type) return '<i class="fa-solid fa-circle-question" aria-hidden="true"></i>';
+    if (type.includes('add')) return '<i class="fa-solid fa-plus" aria-hidden="true"></i>';
+    if (type.includes('multiply')) return '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+    if (type.includes('init')) return '<i class="fa-solid fa-cogs" aria-hidden="true"></i>';
+    return '<i class="fa-solid fa-circle-question" aria-hidden="true"></i>';
+}
 
         function formatTimestamp(ts){ return ts || ''; }
 

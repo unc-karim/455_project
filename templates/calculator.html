@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elliptic Curve</title>
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/calculator.css') }}">
-        </head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calculator.css') }}">
+</head>
 <body>
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="toast-container"></div>
@@ -25,7 +26,7 @@
     <!-- Sliding History Panel -->
     <div id="historyPanel" class="history-panel">
         <div class="history-panel-header">
-            <h2>⚙️ Menu</h2>
+            <h2><i class="fa-solid fa-gear panel-title-icon" aria-hidden="true"></i> Menu</h2>
             <button class="history-close-btn" onclick="closeHistoryPanel()" aria-label="Close menu panel">×</button>
         </div>
         <div class="history-panel-content">
@@ -33,8 +34,8 @@
             <!-- User Profile Section -->
             <div class="menu-section">
                 <div class="menu-section-header">
-                    <div class="user-profile-card">
-                        <div class="user-avatar">👤</div>
+                        <div class="user-profile-card">
+                            <div class="user-avatar"><i class="fa-solid fa-circle-user" aria-hidden="true"></i></div>
                         <div class="user-info">
                             <div class="user-name" id="menuUserName">Guest</div>
                             <div class="user-status" id="menuUserStatus">Not signed in</div>
@@ -47,24 +48,24 @@
             <!-- Quick Actions Section -->
             <div class="menu-section">
                 <h3 class="menu-section-title">Quick Actions</h3>
-                <div class="menu-grid">
-                    <button class="menu-card" onclick="toggleTheme()" title="Toggle light/dark theme">
-                        <span class="menu-card-icon theme-icon">🌙</span>
+                    <div class="menu-grid">
+                        <button class="menu-card" onclick="toggleTheme()" title="Toggle light/dark theme">
+                            <span class="menu-card-icon theme-icon"><i class="fa-solid fa-moon" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Theme</span>
                         <span class="menu-card-hint">Toggle mode</span>
                     </button>
-                    <button class="menu-card" onclick="showKeyboardHelp()" title="View keyboard shortcuts">
-                        <span class="menu-card-icon">⌨️</span>
+                        <button class="menu-card" onclick="showKeyboardHelp()" title="View keyboard shortcuts">
+                            <span class="menu-card-icon"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Shortcuts</span>
                         <span class="menu-card-hint">View all</span>
                     </button>
-                    <button class="menu-card" onclick="showFormulaReference()" title="Mathematical formulas">
-                        <span class="menu-card-icon">📐</span>
+                        <button class="menu-card" onclick="showFormulaReference()" title="Mathematical formulas">
+                            <span class="menu-card-icon"><i class="fa-solid fa-ruler-combined" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Formulas</span>
                         <span class="menu-card-hint">Reference</span>
                     </button>
-                    <button class="menu-card" onclick="exportUnifiedHistory()" title="Export history">
-                        <span class="menu-card-icon">💾</span>
+                        <button class="menu-card" onclick="exportUnifiedHistory()" title="Export history">
+                            <span class="menu-card-icon"><i class="fa-solid fa-file-export" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Export</span>
                         <span class="menu-card-hint">Save data</span>
                     </button>
@@ -74,16 +75,16 @@
             <!-- History Section -->
             <div class="menu-section">
                 <div class="menu-section-title-row">
-                    <h3 class="menu-section-title">📜 History</h3>
-                    <div class="menu-section-actions">
-                        <button class="icon-btn" onclick="refreshUnifiedHistory()" title="Refresh history">
-                            <span>🔄</span>
-                        </button>
-                        <button class="icon-btn" onclick="clearUnifiedHistory()" title="Clear history">
-                            <span>🗑️</span>
-                        </button>
+                        <h3 class="menu-section-title"><i class="fa-solid fa-scroll menu-title-icon" aria-hidden="true"></i> History</h3>
+                        <div class="menu-section-actions">
+                            <button class="icon-btn" onclick="refreshUnifiedHistory()" title="Refresh history">
+                                <span aria-hidden="true"><i class="fa-solid fa-arrows-rotate"></i></span>
+                            </button>
+                            <button class="icon-btn" onclick="clearUnifiedHistory()" title="Clear history">
+                                <span aria-hidden="true"><i class="fa-solid fa-trash-can"></i></span>
+                            </button>
+                        </div>
                     </div>
-                </div>
                 <div id="unifiedHistoryList" class="history-list"></div>
             </div>
 
@@ -93,7 +94,7 @@
     <div class="container">
         <div class="header">
             <button class="info-btn" onclick="toggleAboutModal()" title="About & Help" aria-label="About and help">
-                <span class="info-icon">ℹ️</span>
+                <span class="info-icon"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></span>
             </button>
             <h1>Elliptic Curve</h1>
             <div class="header-buttons">
@@ -109,7 +110,7 @@
         <div id="authOverlay" class="auth-overlay">
             <div class="auth-card">
                 <div style="text-align:center;">
-                    <div class="auth-icon" aria-hidden="true">🔐</div>
+                    <div class="auth-icon" aria-hidden="true"><i class="fa-solid fa-lock" aria-hidden="true"></i></div>
                     <div class="auth-title">Sign in</div>
                     <div class="auth-sub">Access your elliptic curve workspace.</div>
                 </div>

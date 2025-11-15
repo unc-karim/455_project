@@ -1,13 +1,54 @@
-        body { margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .bg { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding:20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .card { width:100%; max-width: 460px; background:#fff; color:#111; border-radius:18px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 24px; }
+        :root {
+            --signup-light-bg: linear-gradient(180deg, #ebf1ff 0%, #f8fbff 100%);
+            --signup-dark-bg: #050b1a;
+            --signup-light-card: #ffffff;
+            --signup-dark-card: #0e172f;
+            --signup-light-text: #0b1b3a;
+            --signup-dark-text: #e2e8ff;
+            --signup-light-border: rgba(37, 99, 235, 0.3);
+            --signup-dark-border: rgba(56, 189, 248, 0.4);
+            --signup-light-icon: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            --signup-dark-icon: linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 100%);
+            --signup-light-shadow: rgba(37, 99, 235, 0.25);
+            --signup-dark-shadow: rgba(14, 165, 233, 0.25);
+            --signup-light-subtext: #475569;
+            --signup-dark-subtext: #a5b4fc;
+        }
+
+        [data-theme="light"] {
+            --signup-bg: var(--signup-light-bg);
+            --signup-card-bg: var(--signup-light-card);
+            --signup-card-color: var(--signup-light-text);
+            --signup-card-border: var(--signup-light-border);
+            --signup-icon-bg: var(--signup-light-icon);
+            --signup-icon-shadow: 0 8px 20px var(--signup-light-shadow);
+            --signup-subtext: var(--signup-light-subtext);
+            --signup-input-bg: #f7f9ff;
+            --signup-input-border: rgba(15, 23, 42, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --signup-bg: linear-gradient(180deg, #01030a 0%, #050b1a 80%);
+            --signup-card-bg: var(--signup-dark-card);
+            --signup-card-color: var(--signup-dark-text);
+            --signup-card-border: var(--signup-dark-border);
+            --signup-icon-bg: var(--signup-dark-icon);
+            --signup-icon-shadow: 0 8px 20px var(--signup-dark-shadow);
+            --signup-subtext: var(--signup-dark-subtext);
+            --signup-input-bg: rgba(15, 23, 42, 0.6);
+            --signup-input-border: rgba(226, 232, 255, 0.2);
+        }
+
+        body { margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--signup-bg); color: var(--signup-card-color); }
+        .bg { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding:20px; background: var(--signup-bg); transition: background 0.4s ease; }
+        .card { width:100%; max-width: 460px; background: var(--signup-card-bg); color: var(--signup-card-color); border-radius:18px; box-shadow: 0 20px 60px rgba(0,0,0,0.24); padding: 24px; border: 1px solid var(--signup-card-border); }
         .form { width:100%; max-width: 360px; margin: 0 auto; }
-        .icon { width:52px; height:52px; border-radius:12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:24px; box-shadow: 0 8px 20px rgba(102,126,234,0.3); }
+        .icon { width:52px; height:52px; border-radius:12px; background: var(--signup-icon-bg); display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:24px; box-shadow: 0 8px 20px var(--signup-icon-shadow); }
         .title { font-size: 1.25rem; font-weight: 700; margin-top: 10px; text-align:center; }
-        .sub { text-align:center; color:#666; font-size:0.95rem; margin-top:4px; }
+        .sub { text-align:center; color: var(--signup-subtext); font-size:0.95rem; margin-top:4px; }
         .field { position:relative; margin-top:14px; }
-        .field input { width:100%; box-sizing: border-box; border:1px solid #ddd; border-radius:12px; padding:12px 16px; font-size:0.95rem; outline:none; }
-        .field input:focus { border-color:#667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.15); }
+        .field input { width:100%; box-sizing: border-box; border:1px solid var(--signup-input-border); border-radius:12px; padding:12px 16px; font-size:0.95rem; outline:none; background: var(--signup-input-bg); color: var(--signup-card-color); }
+        .field input:focus { border-color:#2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
         .err { color:#ff8a80; font-size:0.85rem; margin-top:4px; min-height:1.1em; }
         .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
         .btn-primary-dark { width:100%; padding:14px 18px; border-radius:999px; background:#000; color:#fff; border:none; font-weight:700; cursor:pointer; margin-top:14px; }

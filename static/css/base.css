@@ -1,0 +1,51 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Light theme colors (default) */
+    --bg-primary: #ffffff;
+    --bg-secondary: #e8f0ff;
+    --bg-tertiary: #d9e7ff;
+    --text-primary: #031230;
+    --text-secondary: #0b1f45;
+    --text-tertiary: #1a2f5d;
+    --text-muted: #5a6d9a;
+    --accent-primary: #1f4ed8;
+    --accent-secondary: #2563eb;
+    --accent-tertiary: #3b82f6;
+    --border-color: #cdd7f3;
+    --border-dark: #a5b4dd;
+    --error-bg: rgba(248, 113, 113, 0.15);
+    --error-border: #f87171;
+    --error-text: #dc2626;
+    --result-bg: rgba(37, 99, 235, 0.08);
+    --canvas-bg: #ffffff;
+    --point-color: #1e40af;
+    --shadow-light: rgba(59, 130, 246, 0.2);
+    --shadow-medium: rgba(2, 6, 23, 0.15);
+    --overlay-bg: rgba(255, 255, 255, 0.96);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html {
+    height: auto;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
