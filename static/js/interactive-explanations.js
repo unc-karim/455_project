@@ -18,23 +18,19 @@ const explanations = {
             },
             {
                 subtitle: 'Associativity',
-                content: '(P + Q) + R = P + (Q + R). The order of addition doesn\'t matter, which is crucial for cryptography.',
-                animation: 'associativity'
+                content: '(P + Q) + R = P + (Q + R). The order of addition doesn\'t matter, which is crucial for cryptography.'
             },
             {
                 subtitle: 'Identity Element',
-                content: 'The point at infinity O acts as zero: P + O = P for any point P.',
-                animation: 'identity'
+                content: 'The point at infinity O acts as zero: P + O = P for any point P.'
             },
             {
                 subtitle: 'Inverse Elements',
-                content: 'For every point P = (x, y), there exists -P = (x, -y) such that P + (-P) = O.',
-                animation: 'inverse'
+                content: 'For every point P = (x, y), there exists -P = (x, -y) such that P + (-P) = O.'
             },
             {
                 subtitle: 'Commutativity',
-                content: 'P + Q = Q + P. Addition works the same in either direction.',
-                animation: 'commutativity'
+                content: 'P + Q = Q + P. Addition works the same in either direction.'
             }
         ]
     },
@@ -60,8 +56,7 @@ const explanations = {
             },
             {
                 subtitle: 'Why This Works',
-                content: 'The tangent line represents the "limit" as Q approaches P in the addition formula. Mathematically, it\'s the derivative at that point.',
-                animation: 'limit'
+                content: 'The tangent line represents the "limit" as Q approaches P in the addition formula. Mathematically, it\'s the derivative at that point.'
             }
         ]
     },
@@ -82,8 +77,7 @@ const explanations = {
             },
             {
                 subtitle: 'Why Smoothness Matters',
-                content: 'To define point addition, we need to draw tangent lines. Singularities don\'t have well-defined tangents, breaking the group law.',
-                animation: 'broken-tangent'
+                content: 'To define point addition, we need to draw tangent lines. Singularities don\'t have well-defined tangents, breaking the group law.'
             },
             {
                 subtitle: 'Examples',
@@ -109,8 +103,7 @@ const explanations = {
             },
             {
                 subtitle: 'Security',
-                content: 'Finite groups make the discrete logarithm problem hard. With real numbers, you could use logarithms. With mod p, there\'s no shortcut!',
-                animation: 'security'
+                content: 'Finite groups make the discrete logarithm problem hard. With real numbers, you could use logarithms. With mod p, there\'s no shortcut!'
             },
             {
                 subtitle: 'Why Prime?',
@@ -136,13 +129,11 @@ const explanations = {
             },
             {
                 subtitle: 'Example: 11P',
-                content: 'Binary: 1011₂\n• Start: Q = O\n• Bit 1: Q = 2·O + P = P\n• Bit 0: Q = 2·P = 2P\n• Bit 1: Q = 2·2P + P = 5P\n• Bit 1: Q = 2·5P + P = 11P',
-                animation: 'example-11'
+                content: 'Binary: 1011₂\n• Start: Q = O\n• Bit 1: Q = 2·O + P = P\n• Bit 0: Q = 2·P = 2P\n• Bit 1: Q = 2·2P + P = 5P\n• Bit 1: Q = 2·5P + P = 11P'
             },
             {
                 subtitle: 'Why It\'s Fast',
-                content: 'Naive approach: k-1 additions. Double-and-add: ~log₂(k) doublings + additions. For k = 2²⁵⁶, that\'s 256 ops instead of 10⁷⁷ ops!',
-                animation: 'complexity'
+                content: 'Naive approach: k-1 additions. Double-and-add: ~log₂(k) doublings + additions. For k = 2²⁵⁶, that\'s 256 ops instead of 10⁷⁷ ops!'
             }
         ]
     },
@@ -163,8 +154,7 @@ const explanations = {
             },
             {
                 subtitle: 'Example: 256-bit Curve',
-                content: 'For a 256-bit curve, p ≈ 2²⁵⁶. The best attack requires √(2²⁵⁶) = 2¹²⁸ operations. That\'s impossible with current technology.',
-                animation: 'attack-cost'
+                content: 'For a 256-bit curve, p ≈ 2²⁵⁶. The best attack requires √(2²⁵⁶) = 2¹²⁸ operations. That\'s impossible with current technology.'
             },
             {
                 subtitle: 'Why ECC Is Strong',

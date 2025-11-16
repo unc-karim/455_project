@@ -267,37 +267,45 @@
                 <div class="panel full-width">
                     <h2>About</h2>
                     <p style="margin-bottom: 12px; color:#ccc;">
-                        This interface is designed to cover every major part of elliptic-curve exploration: curve initialization, interactive visualization, operation history, encryption/decryption, and educational demonstrations.
+                        Every UI panel, canvas, and API call here is focused on making elliptic-curve cryptography approachable without sacrificing rigor. You explore curves, run demonstrations, encrypt/decrypt data, and inspect the full history from a single dashboard.
                     </p>
 
                     <div class="math-formula">y² = x³ + ax + b (mod p)</div>
 
-                    <h3 style="color:#000000; margin-top:16px;">Core Curve Experience</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Curve Exploration Workflow</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li><strong>Initialization:</strong> Set <code>a</code>, <code>b</code>, and prime <code>p</code>, then “Find All Points” to show the full group including <strong>O</strong>.</li>
-                        <li><strong>Visualization:</strong> Canvases plot each point inside the finite field grid; you can toggle labels, click to select coordinates, and immediately see the geometric behaviour under the group law.</li>
-                        <li><strong>Addition & Multiplication:</strong> Pick points from the list and use the addition/scalar multiplication panels to see the numerical steps, animations, and explanation text together.</li>
-                        <li><strong>Discrete Log / DH demos:</strong> Switch the demonstrator dropdown to replay Diffie–Hellman handshakes or watch a brute-force discrete log attempt with timeline steps.</li>
+                        <li><strong>Initialization:</strong> Select a preset curve or enter custom <code>a</code>, <code>b</code>, and prime <code>p</code>. The system calculates the full finite field group (including the point at infinity) so you can map the geometry.</li>
+                        <li><strong>Visualization:</strong> Two synchronized canvases plot all points with optional labels, color-coded highlights, and click-to-select behaviour so you can interrogate the group law visually.</li>
+                        <li><strong>Point Operations:</strong> The addition and scalar multiplication panels guide you through the algebraic steps, show animated point movement, and keep transcripts ready to copy as JSON/LaTeX.</li>
+                        <li><strong>Real/Finite Comparison:</strong> The ℝ tab mirrors the workflow over the reals, while the finite field tab stays true to modular arithmetic, letting you contrast the geometry.</li>
                     </ul>
 
-                    <h3 style="color:#000000; margin-top:16px;">Encryption &amp; History Tracking</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Demonstrations &amp; Learning</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li><strong>Encryption tab:</strong> Initialize a key pair, then encrypt text or files; the animation highlights R/S generation and you can copy the JSON ciphertext.</li>
-                        <li><strong>Decryption tab:</strong> Paste or upload ciphertext, run decryption with your stored private key, and observe how the shared secret reveals the plaintext.</li>
-                        <li><strong>History panel:</strong> Every curve initialization, addition, multiplication, encryption, and decryption is logged—use the refresh/clear buttons and the unified list to inspect previous operations.</li>
+                        <li><strong>Diffie-Hellman:</strong> Run a live handshake using the current curve, watch Alice/Bob compute shared secrets, and scrub through animated steps with the slider, auto-scroll, and canvas highlights.</li>
+                        <li><strong>Discrete Logarithm:</strong> Select a scalar <code>k</code>, optionally prefer Baby-step Giant-step, and the demo exhausts attempts with metadata, time estimates, and a human-friendly summary.</li>
+                        <li><strong>Tutorial player:</strong> Contextual tutorials are available from the menu, each explaining curve initialization, point addition, and other core concepts with inline animations.</li>
+                        <li><strong>Interactive explanations:</strong> Expandable cards describe associativity, identity, inverses, smoothness, and why ECC is hard—each tied to animations inside the visualization area.</li>
                     </ul>
 
-                    <h3 style="color:#000000; margin-top:16px;">Recent Enhancements</h3>
+                    <h3 style="color:#000000; margin-top:16px;">Encryption &amp; History</h3>
                     <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
-                        <li>Theme-aware UI with floating menu and toast notifications for smooth feedback.</li>
-                        <li>Professional icons and centered selectors for a polished experience.</li>
-                        <li>Advanced copy helpers so you can export point lists or ciphertext as JSON/LaTeX.</li>
-                        <li>Mobile-optimized layouts and history animations for clarity on all screens.</li>
+                        <li><strong>Encryption workflow:</strong> Generate ephemeral keys, encrypt text or uploaded files, and follow the step-by-step animation that draws R/S points, ciphertext batches, and shared secrets.</li>
+                        <li><strong>Decryption workflow:</strong> Paste or drop ciphertext, decrypt with the stored private key, and see how the shared secret reassembles the plaintext; a guided "show steps" view mirrors the same animation.</li>
+                        <li><strong>History database:</strong> Every curve initialization, parameter change, point addition/multiplication, encryption, and decryption is logged into the SQLite history table. You can export operations, replay demonstrations, and copy JSON summaries directly from the sliding history panel.</li>
+                    </ul>
+
+                    <h3 style="color:#000000; margin-top:16px;">Advanced Utilities</h3>
+                    <ul style="margin-left: 20px; line-height: 1.8; color:#ccc;">
+                        <li><strong>Point classification:</strong> Use the advanced API to identify generators, torsion points, and their orders—perfect for understanding subgroup structure.</li>
+                        <li><strong>Preset management:</strong> The dropdown keeps curated educational curves and lets you save custom presets with descriptions for future work.</li>
+                        <li><strong>Exports:</strong> Generate test vectors, download point lists as CSV/JSON, or copy curve parameters/test results with a single click.</li>
+                        <li><strong>Theme &amp; shortcuts:</strong> Toggle dark/light mode with the floating menu icon, use keyboard helpers, and watch toasts confirm actions.</li>
                     </ul>
 
                     <h3 style="color:#000000; margin-top:16px;">Why Elliptic Curves?</h3>
                     <p style="margin: 8px 0; color:#ccc;">
-                        These curves are the heart of modern cryptography: their group structure gives compact, secure keys, and the hardness of discrete logarithms forms the security guarantee. This app puts that algebra front and center.
+                        These curves form a compact, high-security group where the discrete logarithm problem remains hard. This interface makes every layer—from the algebra to encrypted messages and tutorials—visible so you can both experiment and explain ECC confidently.
                     </p>
                 </div>
                     </div>
@@ -613,7 +621,13 @@
                     <div class="panel">
                         <h2>Visualization</h2>
                         <p style="margin-bottom: 15px; color: #888;">Step-by-step walkthrough</p>
-                        <div id="dhStepsContainer" style="max-height: 500px; overflow-y: auto;"></div>
+                        <div id="dhStepsContainer" style="max-height: 350px; overflow-y: auto;"></div>
+                        <div class="dh-canvas-wrapper" style="margin-top: 20px;">
+                            <canvas id="dhCanvas" width="620" height="420" style="width: 100%; height: auto; border-radius: 12px; background: var(--bg-tertiary); display: none;"></canvas>
+                            <p id="dhCanvasHint" style="margin: 10px 0 0; color: var(--text-muted); font-size: 0.85em; text-align: center;">
+                                The canvas illustrates Alice, Bob, and the shared secret. Run the demo to reveal each step.
+                            </p>
+                        </div>
 
                         <div id="dhAnimControls" class="anim-controls" style="display:none; margin-top: 20px;">
                             <button id="dhPrevBtn" onclick="prevDHStep()">Previous</button>
@@ -657,10 +671,20 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="dlogScalar">Scalar k (2-15 recommended)</label>
-                            <input type="number" id="dlogScalar" value="5" min="2" max="20" placeholder="k">
-                        </div>
+                    <div class="form-group">
+                        <label for="dlogScalar">Scalar k (1-2000)</label>
+                        <input type="number" id="dlogScalar" value="5" min="1" max="2000" placeholder="k">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="dlogUseBsgs" checked>
+                            Prefer Baby-step Giant-step when k is large
+                        </label>
+                        <small style="display:block; margin-top:4px; color: var(--text-muted);">
+                            BSGS speeds up the demo for large scalars (k &gt; 100) but shows fewer explicit steps.
+                        </small>
+                    </div>
 
                         <button onclick="runDiscreteLogDemo()">Start Discrete Log Demo</button>
 

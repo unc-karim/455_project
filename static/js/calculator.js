@@ -947,6 +947,7 @@
 
             selectors.forEach(id => {
                 const select = document.getElementById(id);
+                if (!select) return;
                 select.innerHTML = '<option value="">Select a point</option>';
 
                 currentPoints.forEach((point, index) => {
@@ -4910,99 +4911,9 @@ function getOperationIcon(type){
         let dhState = {
             currentStep: 0,
             steps: [],
-            animationInterval: null
+            animationInterval: null,
+            demoData: null
         };
-
-        async function demonstrateDiffieHellman() {
-            if (!currentCurve || !currentCurve.p) {
-                showToast('Please initialize a curve first', 'warning');
-                return;
-            }
-
-            showLoading('Setting up Diffie-Hellman...', 'Generating keys');
-
-            try {
-                const response = await fetch('/api/diffie_hellman', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        a: currentCurve.a,
-                        b: currentCurve.b,
-                        p: currentCurve.p
-                    })
-                });
-
-                const data = await response.json();
-                hideLoading();
-
-                if (data.success) {
-                    dhState.steps = data.steps;
-                    dhState.currentStep = 0;
-                    displayDiffieHellmanDemo(data);
-                    showToast('Diffie-Hellman demonstration ready!', 'success');
-                } else {
-                    showToast(data.error || 'Diffie-Hellman demo failed', 'error');
-                }
-            } catch (error) {
-                hideLoading();
-                showToast('Error: ' + error.message, 'error');
-            }
-        }
-
-        function displayDiffieHellmanDemo(data) {
-            // Open educational modal with Diffie-Hellman content
-            const modal = document.getElementById('aboutModal');
-            const modalBody = modal.querySelector('.about-modal-body');
-
-            let html = `
-                <div class="panel full-width">
-                    <h2>Diffie-Hellman Key Exchange</h2>
-                    <p style="margin-bottom: 15px; color:#ccc;">
-                        Watch how Alice and Bob establish a shared secret without ever transmitting it!
-                    </p>
-
-                    <div id="dhSteps" class="steps-container">
-            `;
-
-            data.steps.forEach((step, index) => {
-                const isActive = index === dhState.currentStep ? 'active' : '';
-                html += `
-                    <div class="step-item ${isActive}" id="dh-step-${index}">
-                        <div class="step-header">
-                            <span>Step ${step.step}: ${step.description}</span>
-                        </div>
-                        <div class="step-content">
-                            ${step.detail}
-                            ${step.calculation ? '<br><code>' + step.calculation + '</code>' : ''}
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `
-                    </div>
-
-                    <div class="anim-controls" style="margin-top: 20px; display: grid;">
-                        <button onclick="prevDHStep()">Previous</button>
-                        <button onclick="playDHAnimation()" id="dhPlayBtn">Play</button>
-                        <input type="range" id="dhStepSlider" min="0" max="${data.steps.length - 1}" value="0" oninput="setDHStep(this.value)">
-                        <button onclick="nextDHStep()">Next</button>
-                        <span class="step-label" id="dhStepLabel">1/${data.steps.length}</span>
-                    </div>
-
-                    <div class="result-box" style="margin-top: 20px;">
-                        <h3>Summary</h3>
-                        <p><strong>Base Point (G):</strong> (${data.summary.base_point.x}, ${data.summary.base_point.y})</p>
-                        <p><strong>Alice's Private Key:</strong> ${data.summary.alice_private}</p>
-                        <p><strong>Bob's Private Key:</strong> ${data.summary.bob_private}</p>
-                        <p style="color: #10b981;"><strong>Shared Secret:</strong> (${data.summary.shared_secret.x}, ${data.summary.shared_secret.y})</p>
-                    </div>
-                </div>
-            `;
-
-            modalBody.innerHTML = html;
-            modal.classList.add('active');
-        }
 
         // For demonstration tab
         async function runDiffieHellmanDemo() {
@@ -5028,7 +4939,8 @@ function getOperationIcon(type){
                 hideLoading();
 
                 if (data.success) {
-                    dhState.steps = data.steps;
+                    dhState.demoData = data;
+                    dhState.steps = Array.isArray(data.steps) ? data.steps : [];
                     dhState.currentStep = 0;
                     displayDiffieHellmanInTab(data);
                     showToast('Diffie-Hellman demonstration ready!', 'success');
@@ -5042,6 +4954,8 @@ function getOperationIcon(type){
         }
 
         function displayDiffieHellmanInTab(data) {
+            dhState.demoData = data;
+            dhState.steps = Array.isArray(data.steps) ? data.steps : dhState.steps;
             const container = document.getElementById('dhStepsContainer');
             const resultDiv = document.getElementById('dhDemoResult');
 
@@ -5080,8 +4994,13 @@ function getOperationIcon(type){
             controls.style.display = 'grid';
 
             const slider = document.getElementById('dhStepSlider');
-            slider.max = data.steps.length - 1;
+            slider.max = Math.max(0, data.steps.length - 1);
             slider.value = 0;
+
+            const canvas = document.getElementById('dhCanvas');
+            if (canvas) {
+                canvas.style.display = data.steps.length ? 'block' : 'none';
+            }
 
             updateDHStepDisplay();
         }
@@ -5137,12 +5056,277 @@ function getOperationIcon(type){
 
             const slider = document.getElementById('dhStepSlider');
             const label = document.getElementById('dhStepLabel');
+            const maxIndex = Math.max(0, dhState.steps.length - 1);
 
-            if (slider) slider.value = dhState.currentStep;
-            if (label) label.textContent = `${dhState.currentStep + 1}/${dhState.steps.length}`;
+            if (dhState.currentStep > maxIndex) {
+                dhState.currentStep = maxIndex;
+            }
+
+            if (slider) slider.value = Math.min(dhState.currentStep, maxIndex);
+            if (label) {
+                const displayTotal = dhState.steps.length || 1;
+                const displayCurrent = dhState.steps.length ? dhState.currentStep + 1 : 0;
+                label.textContent = `${displayCurrent}/${displayTotal}`;
+            }
+
+            drawDHVisualization();
+        }
+
+        function drawDHVisualization() {
+            const canvas = document.getElementById('dhCanvas');
+            if (!canvas || !dhState.demoData) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const aliceColor = '#ff6b9d';
+            const bobColor = '#4a9eff';
+            const sharedColor = '#10b981';
+            const baseColor = '#fbbf24';
+
+            const aliceX = 100;
+            const bobX = 500;
+            const centerY = 200;
+            const baseY = 100;
+
+            const textColor = document.body.getAttribute('data-theme') === 'dark' ? '#edf2ff' : '#031230';
+            const textSecondary = document.body.getAttribute('data-theme') === 'dark' ? '#cfd6ff' : '#0b1f45';
+
+            ctx.fillStyle = textColor;
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Diffie-Hellman Key Exchange Protocol', width / 2, 25);
+
+            if (dhState.currentStep >= 0) {
+                ctx.fillStyle = baseColor;
+                ctx.beginPath();
+                ctx.arc(width / 2, baseY, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('G', width / 2, baseY + 5);
+                ctx.fillStyle = textSecondary;
+                ctx.font = '12px sans-serif';
+                ctx.fillText(`G = (${dhState.demoData.summary.base_point.x}, ${dhState.demoData.summary.base_point.y})`, width / 2, baseY - 30);
+            }
+
+            ctx.fillStyle = aliceColor;
+            ctx.beginPath();
+            ctx.arc(aliceX, centerY, 30, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', aliceX, centerY + 6);
+            ctx.fillStyle = textColor;
+            ctx.font = '14px sans-serif';
+            ctx.fillText('Alice', aliceX, centerY - 45);
+
+            ctx.fillStyle = bobColor;
+            ctx.beginPath();
+            ctx.arc(bobX, centerY, 30, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText('B', bobX, centerY + 6);
+            ctx.fillStyle = textColor;
+            ctx.font = '14px sans-serif';
+            ctx.fillText('Bob', bobX, centerY - 45);
+
+            if (dhState.currentStep >= 1) {
+                ctx.fillStyle = aliceColor;
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Private: a = ${dhState.demoData.summary.alice_private}`, aliceX, centerY + 55);
+                ctx.fillText('(Secret)', aliceX, centerY + 70);
+            }
+            if (dhState.currentStep >= 2) {
+                ctx.fillStyle = bobColor;
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Private: b = ${dhState.demoData.summary.bob_private}`, bobX, centerY + 55);
+                ctx.fillText('(Secret)', bobX, centerY + 70);
+            }
+            if (dhState.currentStep >= 3) {
+                drawArrow(ctx, width / 2 + 20, baseY + 15, aliceX, centerY - 35, baseColor, 2);
+                ctx.fillStyle = aliceColor;
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`Public: A = ${dhState.demoData.summary.alice_private} × G`, aliceX, centerY + 90);
+                ctx.font = '10px sans-serif';
+                ctx.fillText(`(${dhState.demoData.summary.alice_public.x}, ${dhState.demoData.summary.alice_public.y})`, aliceX, centerY + 105);
+            }
+            if (dhState.currentStep >= 4) {
+                drawArrow(ctx, width / 2 - 20, baseY + 15, bobX, centerY - 35, baseColor, 2);
+                ctx.fillStyle = bobColor;
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`Public: B = ${dhState.demoData.summary.bob_private} × G`, bobX, centerY + 90);
+                ctx.font = '10px sans-serif';
+                ctx.fillText(`(${dhState.demoData.summary.bob_public.x}, ${dhState.demoData.summary.bob_public.y})`, bobX, centerY + 105);
+            }
+            if (dhState.currentStep >= 5) {
+                drawArrow(ctx, aliceX + 35, centerY - 10, bobX - 35, centerY - 10, aliceColor, 3, true);
+                ctx.fillStyle = aliceColor;
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('A →', (aliceX + bobX) / 2, centerY - 20);
+                ctx.font = '9px sans-serif';
+                ctx.fillText('(Public)', (aliceX + bobX) / 2, centerY - 7);
+            }
+            if (dhState.currentStep >= 6) {
+                drawArrow(ctx, bobX - 35, centerY + 10, aliceX + 35, centerY + 10, bobColor, 3, true);
+                ctx.fillStyle = bobColor;
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('← B', (aliceX + bobX) / 2, centerY + 23);
+                ctx.font = '9px sans-serif';
+                ctx.fillText('(Public)', (aliceX + bobX) / 2, centerY + 36);
+            }
+            if (dhState.currentStep >= 7) {
+                ctx.fillStyle = aliceColor;
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Computes:', aliceX, centerY + 125);
+                ctx.fillText(`${dhState.demoData.summary.alice_private} × B`, aliceX, centerY + 140);
+            }
+            if (dhState.currentStep >= 8) {
+                ctx.fillStyle = bobColor;
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Computes:', bobX, centerY + 125);
+                ctx.fillText(`${dhState.demoData.summary.bob_private} × A`, bobX, centerY + 140);
+            }
+            if (dhState.currentStep >= 8) {
+                const sharedY = 360;
+                ctx.fillStyle = sharedColor;
+                ctx.beginPath();
+                ctx.arc(width / 2, sharedY, 25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('🔑', width / 2, sharedY + 6);
+                ctx.fillStyle = sharedColor;
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText('Shared Secret', width / 2, sharedY - 35);
+                ctx.font = '11px sans-serif';
+                ctx.fillText(`(${dhState.demoData.summary.shared_secret.x}, ${dhState.demoData.summary.shared_secret.y})`, width / 2, sharedY - 20);
+                drawArrow(ctx, aliceX + 15, centerY + 30, width / 2 - 20, sharedY - 25, sharedColor, 2, false, true);
+                drawArrow(ctx, bobX - 15, centerY + 30, width / 2 + 20, sharedY - 25, sharedColor, 2, false, true);
+            }
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY, color, width = 2, dashed = false, curved = false) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = width;
+            if (dashed) ctx.setLineDash([8, 4]);
+            ctx.beginPath();
+            if (curved) {
+                const midX = (fromX + toX) / 2;
+                const midY = (fromY + toY) / 2 + 30;
+                ctx.quadraticCurveTo(midX, midY, toX, toY);
+            } else {
+                ctx.moveTo(fromX, fromY);
+                ctx.lineTo(toX, toY);
+            }
+            ctx.stroke();
+            if (curved) {
+                ctx.beginPath();
+                const angle = Math.atan2(toY - fromY, toX - fromX);
+                const arrowSize = 8;
+                ctx.moveTo(toX, toY);
+                ctx.lineTo(toX - arrowSize * Math.cos(angle - Math.PI / 6), toY - arrowSize * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(toX - arrowSize * Math.cos(angle + Math.PI / 6), toY - arrowSize * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                const angle = Math.atan2(toY - fromY, toX - fromX);
+                const arrowSize = 8;
+                ctx.beginPath();
+                ctx.moveTo(toX, toY);
+                ctx.lineTo(toX - arrowSize * Math.cos(angle - Math.PI / 6), toY - arrowSize * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(toX - arrowSize * Math.cos(angle + Math.PI / 6), toY - arrowSize * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.setLineDash([]);
+            ctx.restore();
         }
 
         // =================== DISCRETE LOGARITHM DEMONSTRATION =================== //
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatDLogPoint(point) {
+            if (!point || point.x === null || point.x === undefined) {
+                return 'O';
+            }
+            return `(${point.x}, ${point.y})`;
+        }
+
+        function buildDiscreteLogSummaryHTML(data) {
+            if (!data || !data.problem || !data.solution) {
+                return '<div class="result-box" style="margin-top: 15px;">No data available</div>';
+            }
+            const summary = data.solution;
+            const metadata = data.metadata || {};
+            const algorithm = summary.algorithm ? summary.algorithm.replace(/_/g, ' ') : 'brute force';
+            const steps = summary.steps_taken ?? 'N/A';
+            const requested = summary.requested_k ?? summary.k;
+            const useBsgs = summary.use_bsgs ? 'Yes' : 'No';
+            const pointOrder = metadata.point_order ?? 'unknown';
+            const timeSeconds = summary.time_seconds ? summary.time_seconds.toFixed(3) : 'n/a';
+
+            return `
+                <div class="result-box" style="margin-top: 15px;">
+                    <h3>Discrete Log Summary</h3>
+                    <p><strong>Given point P:</strong> ${formatDLogPoint(data.problem.P)}</p>
+                    <p><strong>Target point Q:</strong> ${formatDLogPoint(data.problem.Q)}</p>
+                    <p><strong>Algorithm:</strong> ${algorithm}</p>
+                    <p><strong>Scalar k:</strong> ${summary.k} (requested ${requested})</p>
+                    <p><strong>Steps recorded:</strong> ${steps}</p>
+                    <p><strong>Use BSGS:</strong> ${useBsgs}</p>
+                    <p><strong>Point order estimate:</strong> ${pointOrder}</p>
+                    <p><strong>Time:</strong> ${timeSeconds}s</p>
+                </div>
+            `;
+        }
+
+        function buildDiscreteLogAttemptList(attempts) {
+            if (!Array.isArray(attempts) || attempts.length === 0) {
+                return '<p class="empty-result" style="color: var(--text-muted);">No attempts recorded yet.</p>';
+            }
+
+            return attempts.map(attempt => {
+                const displayPoint = attempt.point || attempt.result || {};
+                const coords = formatDLogPoint(displayPoint);
+                const label = attempt.label || (attempt.k ? `${attempt.k} × P` : (attempt.phase ? attempt.phase.replace(/_/g, ' ') : 'Step'));
+                const description = attempt.description ? `<div style="font-size: 0.85em; color: var(--text-muted); margin-top: 4px;">${escapeHtml(attempt.description)}</div>` : '';
+                const matchIcon = attempt.match ? '<span style="color: #10b981; margin-left: 6px;">✓</span>' : '';
+                return `
+                    <div class="step-item${attempt.match ? ' active' : ''}">
+                        <div class="step-content">
+                            <strong>${label}</strong>${matchIcon}
+                            <div style="margin-top: 4px; font-size: 0.9em; color: var(--text-muted);">${coords}</div>
+                            ${description}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
         async function demonstrateDiscreteLog() {
             if (!currentCurve || !currentCurve.p) {
@@ -5153,7 +5337,11 @@ function getOperationIcon(type){
             showLoading('Setting up discrete log demo...', 'Finding points');
 
             try {
-                const k = parseInt(prompt('Enter a scalar k (2-15):', '5')) || 5;
+                const rawInput = prompt('Enter a scalar k (1-2000):', '5');
+                let k = parseInt(rawInput, 10);
+                if (Number.isNaN(k)) k = 5;
+                k = Math.max(1, Math.min(2000, k));
+                const useBsgs = k > 100;
 
                 const response = await fetch('/api/discrete_log_demo', {
                     method: 'POST',
@@ -5162,7 +5350,8 @@ function getOperationIcon(type){
                         a: currentCurve.a,
                         b: currentCurve.b,
                         p: currentCurve.p,
-                        k: k
+                        k,
+                        use_bsgs: useBsgs
                     })
                 });
 
@@ -5184,41 +5373,22 @@ function getOperationIcon(type){
         function displayDiscreteLogDemo(data) {
             const modal = document.getElementById('aboutModal');
             const modalBody = modal.querySelector('.about-modal-body');
+            const summaryHtml = buildDiscreteLogSummaryHTML(data);
+            const attemptsHtml = buildDiscreteLogAttemptList(data.attempts);
+            const complexityHtml = data.complexity_note ? `<pre class="complexity-note" style="margin-top: 15px;">${escapeHtml(data.complexity_note)}</pre>` : '';
 
-            let html = `
+            const html = `
                 <div class="panel full-width">
                     <h2>Discrete Logarithm Problem</h2>
                     <p style="margin-bottom: 15px; color:#ccc;">
                         ${data.problem.description}
                     </p>
-
-                    <div class="result-box">
-                        <p><strong>Given Point P:</strong> (${data.problem.P.x}, ${data.problem.P.y})</p>
-                        <p><strong>Target Point Q:</strong> (${data.problem.Q.x ?? 'O'}, ${data.problem.Q.y ?? 'O'})</p>
-                        <p style="color: #10b981;"><strong>Solution:</strong> k = ${data.solution.k}</p>
+                    ${summaryHtml}
+                    <h3 style="margin-top: 20px; color: var(--text-primary);">Attempt Log</h3>
+                    <div class="steps-container" style="max-height: 320px; overflow-y: auto; margin-top: 10px;">
+                        ${attemptsHtml}
                     </div>
-
-                    <h3 style="margin-top: 20px; color: var(--text-primary);">Brute Force Attempts:</h3>
-                    <div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
-            `;
-
-            data.attempts.forEach(attempt => {
-                const matchStyle = attempt.match ? 'border-left-color: #10b981; background: var(--result-bg);' : '';
-                const matchIcon = attempt.match ? ' ✓' : '';
-                html += `
-                    <div class="step-item" style="${matchStyle}">
-                        <div class="step-content">
-                            k = ${attempt.k}: (${attempt.result.x ?? 'O'}, ${attempt.result.y ?? 'O'})${matchIcon}
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `
-                    </div>
-                    <p style="margin-top: 15px; color: var(--text-muted); font-size: 0.9em;">
-                        ${data.complexity_note}
-                    </p>
+                    ${complexityHtml}
                 </div>
             `;
 
@@ -5226,25 +5396,38 @@ function getOperationIcon(type){
             modal.classList.add('active');
         }
 
-        // For demonstration tab
         async function runDiscreteLogDemo() {
-            const a = parseInt(document.getElementById('dlogParamA').value);
-            const b = parseInt(document.getElementById('dlogParamB').value);
-            const p = parseInt(document.getElementById('dlogParamP').value);
-            const k = parseInt(document.getElementById('dlogScalar').value);
+            const a = Number.parseInt(document.getElementById('dlogParamA').value, 10);
+            const b = Number.parseInt(document.getElementById('dlogParamB').value, 10);
+            const p = Number.parseInt(document.getElementById('dlogParamP').value, 10);
+            let k = Number.parseInt(document.getElementById('dlogScalar').value, 10);
 
-            if (isNaN(a) || isNaN(b) || isNaN(p) || isNaN(k)) {
+            if ([a, b, p, k].some(value => Number.isNaN(value))) {
                 showToast('Please enter valid parameters', 'error');
                 return;
             }
 
+            if (k < 1) {
+                showToast('Scalar k must be at least 1', 'warning');
+                return;
+            }
+
+            if (k > 2000) {
+                showToast('Scalar k is capped at 2000 for educational demos', 'info');
+                k = 2000;
+                document.getElementById('dlogScalar').value = k;
+            }
+
+            const useBsgs = document.getElementById('dlogUseBsgs')?.checked ?? false;
+
             showLoading('Setting up discrete log demo...', 'Finding points');
 
             try {
+                const payload = { a, b, p, k, use_bsgs: useBsgs };
                 const response = await fetch('/api/discrete_log_demo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ a, b, p, k })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -5265,37 +5448,16 @@ function getOperationIcon(type){
         function displayDiscreteLogInTab(data) {
             const container = document.getElementById('dlogStepsContainer');
             const resultDiv = document.getElementById('dlogDemoResult');
+            const summaryHtml = buildDiscreteLogSummaryHTML(data);
+            const attemptsHtml = buildDiscreteLogAttemptList(data.attempts);
+            const complexityHtml = data.complexity_note ? `<pre class="complexity-note" style="margin-top: 10px;">${escapeHtml(data.complexity_note)}</pre>` : '';
 
-            // Show problem statement
-            resultDiv.innerHTML = `
-                <div class="result-box" style="margin-top: 20px;">
-                    <h3>Problem</h3>
-                    <p><strong>Given Point P:</strong> (${data.problem.P.x}, ${data.problem.P.y})</p>
-                    <p><strong>Target Point Q:</strong> (${data.problem.Q.x ?? 'O'}, ${data.problem.Q.y ?? 'O'})</p>
-                    <p><strong>Task:</strong> ${data.problem.description}</p>
-                    <hr style="margin: 15px 0; border: none; border-top: 1px solid var(--border-color);">
-                    <p style="color: #10b981;"><strong>Solution:</strong> k = ${data.solution.k}</p>
-                    <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 10px;">
-                        ${data.complexity_note}
-                    </p>
+            resultDiv.innerHTML = `${summaryHtml}${complexityHtml}`;
+            container.innerHTML = `
+                <div style="max-height: 420px; overflow-y: auto; margin-top: 10px;">
+                    ${attemptsHtml}
                 </div>
             `;
-
-            // Show attempts
-            let html = '';
-            data.attempts.forEach(attempt => {
-                const matchStyle = attempt.match ? 'border-left-color: #10b981; background: var(--result-bg);' : '';
-                const matchIcon = attempt.match ? ' ✓' : '';
-                html += `
-                    <div class="step-item" style="${matchStyle}">
-                        <div class="step-content">
-                            <strong>Attempt ${attempt.k}:</strong> ${attempt.k} × P = (${attempt.result.x ?? 'O'}, ${attempt.result.y ?? 'O'})${matchIcon}
-                        </div>
-                    </div>
-                `;
-            });
-
-            container.innerHTML = html;
         }
 
         // =================== EDUCATIONAL MODAL: "WHY IT WORKS" =================== //
