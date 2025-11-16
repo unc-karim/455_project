@@ -1947,6 +1947,7 @@
         }
 
         // Auth UI & API integration
+        let cachedAuthSession = null;
         function shouldForceLogin(){
             try { if (localStorage.getItem('force_login') === '1') return true; } catch(_) {}
             const qs = new URLSearchParams(window.location.search);
@@ -1957,6 +1958,7 @@
             try {
                 const res = await fetch('/api/session');
                 const data = await res.json();
+                cachedAuthSession = data || null;
                 const force = shouldForceLogin();
                 updateAuthUI(data);
                 if (!data || !data.logged_in) {
@@ -1964,11 +1966,14 @@
                 }
             } catch (e) {
                 // attempt guest if session fetch fails (unless we force login view)
+                cachedAuthSession = null;
+                updateAuthUI(null);
                 if (!shouldForceLogin()) ensureGuestSession();
             }
         }
 
         function updateAuthUI(session) {
+            cachedAuthSession = session || null;
             const overlay = document.getElementById('authOverlay');
             const profileBtn = document.getElementById('profileBtn');
             const profileName = document.getElementById('profileName');
@@ -1992,6 +1997,7 @@
             const menuLogout = document.getElementById('menuLogout');
             if (menuLogin) menuLogin.style.display = isGuest ? 'block' : 'none';
             if (menuLogout) menuLogout.style.display = (isLoggedIn && !isGuest) ? 'block' : 'none';
+            updateMenuUserInfo();
         }
 
         // Auto-create a guest session on first load
@@ -3263,13 +3269,14 @@ function getOperationIcon(type){
 
         // Update user info displayed in menu
         function updateMenuUserInfo() {
-            const userName = localStorage.getItem('username');
+            const session = cachedAuthSession;
+            const isLoggedIn = !!(session && session.logged_in && !session.is_guest);
+            const userName = isLoggedIn ? (session.username || 'user') : null;
             const menuUserName = document.getElementById('menuUserName');
             const menuUserStatus = document.getElementById('menuUserStatus');
             const menuAuthBtn = document.getElementById('menuAuthBtn');
 
-            if (userName) {
-                // User is logged in
+            if (isLoggedIn && userName) {
                 if (menuUserName) menuUserName.textContent = userName;
                 if (menuUserStatus) menuUserStatus.textContent = 'Signed in';
                 if (menuAuthBtn) {
@@ -3280,7 +3287,6 @@ function getOperationIcon(type){
                     };
                 }
             } else {
-                // User is not logged in
                 if (menuUserName) menuUserName.textContent = 'Guest';
                 if (menuUserStatus) menuUserStatus.textContent = 'Not signed in';
                 if (menuAuthBtn) {
