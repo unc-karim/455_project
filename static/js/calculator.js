@@ -1956,7 +1956,7 @@
 
         async function loadSession() {
             try {
-                const res = await fetch('/api/session');
+                const res = await fetch('/api/session', { credentials: 'same-origin' });
                 const data = await res.json();
                 cachedAuthSession = data || null;
                 const force = shouldForceLogin();
@@ -2005,8 +2005,8 @@
         async function ensureGuestSession(){
             if (_guestAttempted) return; _guestAttempted = true;
             try {
-                let res = await fetch('/api/auth/guest', {method:'POST'});
-                if(!res.ok){ res = await fetch('/api/guest', {method:'POST'}); }
+                let res = await fetch('/api/auth/guest', {method:'POST', credentials:'same-origin'});
+                if(!res.ok){ res = await fetch('/api/guest', {method:'POST', credentials:'same-origin'}); }
                 loadSession();
             } catch(_){ /* ignore */ }
         }
@@ -2064,8 +2064,8 @@
             const msgEl = document.getElementById('authMsgOverlay');
             msgEl.textContent = '';
             try {
-                let res = await fetch('/api/auth/guest', {method:'POST'});
-                if(!res.ok){ res = await fetch('/api/guest', {method:'POST'}); }
+                let res = await fetch('/api/auth/guest', {method:'POST', credentials:'same-origin'});
+                if(!res.ok){ res = await fetch('/api/guest', {method:'POST', credentials:'same-origin'}); }
                 if(res.ok){ window.location.href = '/app'; return; }
             } catch(_){}
             try { localStorage.setItem('guest_session_id', (crypto && crypto.randomUUID? crypto.randomUUID(): String(Date.now()))); } catch(_) {}
@@ -2074,7 +2074,7 @@
 
         async function doLogout() {
             try {
-                await fetch('/api/logout', {method: 'POST'});
+                await fetch('/api/logout', {method: 'POST', credentials: 'same-origin'});
                 loadSession();
             } catch (e) { /* ignore */ }
         }
