@@ -4,7 +4,7 @@ import secrets
 from flask import jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from db_helpers import get_current_user, get_db
+from .db_helpers import get_current_user, get_db
 
 
 def register_auth_routes(app):

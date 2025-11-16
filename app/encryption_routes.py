@@ -3,8 +3,8 @@ import secrets
 
 from flask import jsonify, request, session
 
-from db_helpers import get_current_user, save_history
-from elliptic_curve import EllipticCurve
+from .db_helpers import get_current_user, save_history
+from .elliptic_curve import EllipticCurve
 
 
 def register_encryption_routes(app):

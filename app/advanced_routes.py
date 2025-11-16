@@ -7,7 +7,7 @@ Advanced ECC routes for educational features:
 """
 
 from flask import jsonify, request
-from elliptic_curve import EllipticCurve
+from .elliptic_curve import EllipticCurve
 
 
 def register_advanced_routes(app):
@@ -481,7 +481,7 @@ For 256-bit curves (order ~2^256), even BSGS requires ~2^128 operations, making 
 
             if export_format == 'python':
                 code = f"""# Elliptic Curve Parameters
-from elliptic_curve import EllipticCurve
+from app.elliptic_curve import EllipticCurve
 
 # Curve: {curve}
 curve = EllipticCurve(a={a}, b={b}, p={p})

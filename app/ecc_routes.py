@@ -1,7 +1,7 @@
 from flask import jsonify, request, session
 
-from db_helpers import ensure_session_id, get_current_user, save_history, save_operation_history
-from elliptic_curve import EllipticCurve, RealEllipticCurve
+from .db_helpers import ensure_session_id, get_current_user, save_history, save_operation_history
+from .elliptic_curve import EllipticCurve, RealEllipticCurve
 
 
 def register_ecc_routes(app):

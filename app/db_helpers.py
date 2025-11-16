@@ -3,14 +3,16 @@ import os
 import secrets
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 from flask import session
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'app.db')
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = Path(os.environ.get('DB_PATH', BASE_DIR / 'app.db'))
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
 

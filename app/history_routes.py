@@ -2,7 +2,7 @@ import json
 
 from flask import jsonify, session
 
-from db_helpers import ensure_session_id, get_current_user, get_db
+from .db_helpers import ensure_session_id, get_current_user, get_db
 
 
 def register_history_routes(app):
