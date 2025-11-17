@@ -20,9 +20,10 @@ def register_auth_routes(app):
         data = request.get_json()
         username = data.get('username', '').strip()
         password = data.get('password', '')
+        email = data.get('email', '').strip()
 
-        if not username or not password:
-            return jsonify({'success': False, 'message': 'Username and password are required'}), 400
+        if not username or not password or not email:
+            return jsonify({'success': False, 'message': 'Username, password, and email are required'}), 400
 
         conn = get_db()
         try:
@@ -32,7 +33,7 @@ def register_auth_routes(app):
             pw_hash = generate_password_hash(password)
             conn.execute(
                 "INSERT INTO users (username, email, password_hash, is_guest, created_at) VALUES (?,?,?,?,?)",
-                (username, None, pw_hash, 0, datetime.utcnow().isoformat()),
+                (username, email, pw_hash, 0, datetime.utcnow().isoformat()),
             )
             conn.commit()
             cur = conn.execute("SELECT id FROM users WHERE username = ?", (username,))
