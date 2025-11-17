@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template
 
-from . import advanced_routes, auth_routes, ecc_routes, encryption_routes, history_routes, tutorials
+from . import advanced_routes, auth_routes, chat_routes, ecc_routes, encryption_routes, history_routes, tutorials
 from .db_helpers import init_db
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,6 +46,7 @@ def _register_routes(app):
     history_routes.register_history_routes(app)
     encryption_routes.register_encryption_routes(app)
     advanced_routes.register_advanced_routes(app)
+    chat_routes.register_chat_routes(app)
     tutorials.register_tutorial_routes(app)
 
 

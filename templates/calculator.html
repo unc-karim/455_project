@@ -808,6 +808,40 @@
         </div>
     </div>
 
+    <!-- Floating ECC Expert Chat -->
+    <div class="chat-assistant" aria-live="polite">
+        <button id="chatToggleBtn" class="chat-fab" aria-label="Open ECC expert chat">
+            <i class="fa-solid fa-robot"></i>
+        </button>
+        <div id="chatWindow" class="chat-window">
+            <div class="chat-header">
+                <div>
+                    <div class="chat-title">ECC Expert</div>
+                    <div class="chat-subtitle">Ask about curves, keys, or crypto flow</div>
+                </div>
+                <div class="chat-header-actions">
+                    <span id="chatStatus" class="chat-status">Ready</span>
+                    <button id="chatCloseBtn" class="chat-close-btn" aria-label="Close chat">×</button>
+                </div>
+            </div>
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-message bot">
+                    <div class="chat-avatar"><i class="fa-solid fa-wave-square" aria-hidden="true"></i></div>
+                    <div class="chat-bubble">
+                        Hi! I’m your elliptic-curve guide. Ask me how to pick base points, verify group laws, or troubleshoot key exchange.
+                    </div>
+                </div>
+            </div>
+            <form id="chatForm" class="chat-input-area">
+                <textarea id="chatInput" rows="2" placeholder="Ask how to choose p, find generators, or compute kP fast..." required></textarea>
+                <button type="submit" class="chat-send-btn">
+                    <span class="send-label">Send</span>
+                    <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
             <script src="{{ url_for('static', filename='js/calculator.js') }}"></script>
 
 </html>

@@ -6127,3 +6127,121 @@ function getOperationIcon(type){
                 legendY += 20;
             });
         }
+
+        // =================== ECC EXPERT CHAT =================== //
+
+        function initChatAssistant() {
+            const chatWindow = document.getElementById('chatWindow');
+            const toggleBtn = document.getElementById('chatToggleBtn');
+            const closeBtn = document.getElementById('chatCloseBtn');
+            const chatForm = document.getElementById('chatForm');
+            const chatInput = document.getElementById('chatInput');
+            const chatMessages = document.getElementById('chatMessages');
+            const chatStatus = document.getElementById('chatStatus');
+
+            if (!chatWindow || !toggleBtn || !chatForm || !chatMessages || !chatStatus) return;
+
+            let sending = false;
+            const history = [];
+
+            function scrollMessages() {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function toggleChat(forceOpen) {
+                const shouldOpen = forceOpen !== undefined ? forceOpen : !chatWindow.classList.contains('open');
+                chatWindow.classList.toggle('open', shouldOpen);
+                toggleBtn.classList.toggle('active', shouldOpen);
+                if (shouldOpen) {
+                    setTimeout(() => chatInput && chatInput.focus(), 120);
+                }
+            }
+
+            function renderMessage(role, content, variant) {
+                const wrapper = document.createElement('div');
+                wrapper.className = `chat-message ${role}${variant === 'error' ? ' error' : ''}`.trim();
+
+                const avatar = document.createElement('div');
+                avatar.className = 'chat-avatar';
+                avatar.innerHTML = role === 'user'
+                    ? '<i class="fa-solid fa-user"></i>'
+                    : '<i class="fa-solid fa-robot"></i>';
+
+                const bubble = document.createElement('div');
+                bubble.className = 'chat-bubble';
+                if (variant === 'typing') bubble.classList.add('chat-typing');
+                bubble.textContent = content;
+
+                wrapper.appendChild(avatar);
+                wrapper.appendChild(bubble);
+                chatMessages.appendChild(wrapper);
+                scrollMessages();
+                return wrapper;
+            }
+
+            async function sendChat(event) {
+                event.preventDefault();
+                if (sending) return;
+
+                const text = (chatInput.value || '').trim();
+                if (!text) return;
+
+                sending = true;
+                chatInput.value = '';
+                renderMessage('user', text);
+                history.push({ role: 'user', content: text });
+                chatStatus.textContent = 'Thinking...';
+
+                const thinking = renderMessage('bot', 'Working on it...', 'typing');
+
+                try {
+                    const resp = await fetch('/api/chatbot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text, messages: history })
+                    });
+
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success) {
+                        throw new Error(data.error || 'Chat request failed');
+                    }
+
+                    const reply = data.reply || 'No reply received.';
+                    thinking.remove();
+                    renderMessage('bot', reply);
+                    history.push({ role: 'assistant', content: reply });
+                    chatStatus.textContent = 'Ready';
+                } catch (err) {
+                    if (thinking && thinking.remove) thinking.remove();
+                    renderMessage('bot', err.message || 'Unable to reach assistant', 'error');
+                    chatStatus.textContent = 'Try again';
+                } finally {
+                    sending = false;
+                    scrollMessages();
+                }
+            }
+
+            toggleBtn.addEventListener('click', () => toggleChat());
+            if (closeBtn) closeBtn.addEventListener('click', () => toggleChat(false));
+            chatForm.addEventListener('submit', sendChat);
+            if (chatInput) {
+                chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        chatForm.requestSubmit();
+                    }
+                });
+            }
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && chatWindow.classList.contains('open')) {
+                    toggleChat(false);
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initChatAssistant);
+        } else {
+            initChatAssistant();
+        }
