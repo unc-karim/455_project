@@ -26,6 +26,13 @@ pip install -r requirements.txt
 python server.py  # serves on http://localhost:5000
 ```
 
+### Verify your OpenRouter key
+The app loads `.env` automatically. To confirm the key works before using the UI:
+```bash
+python openrouter_test.py  # prints status + JSON from OpenRouter
+```
+Ensure `.env` contains `OPENROUTER_API_KEY=sk-or-...` (no quotes/spaces) and restart the server after changes.
+
 ## Docker (local)
 ```bash
 docker build -t ecc-calculator -f deployment/Dockerfile .

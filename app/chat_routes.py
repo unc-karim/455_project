@@ -61,7 +61,7 @@ def register_chat_routes(app):
     @app.route("/api/chatbot", methods=["POST"])
     def chatbot():
         """Proxy chatbot requests to OpenRouter using the server-side API key."""
-        api_key = os.getenv("OPENROUTER_API_KEY")
+        api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
         if not api_key:
             return jsonify({"success": False, "error": "Missing OpenRouter API key"}), 500
 
@@ -85,7 +85,7 @@ def register_chat_routes(app):
             "temperature": 0.2,
         }
 
-        api_url = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
+        api_url = (os.getenv("OPENROUTER_API_BASE") or "https://openrouter.ai/api/v1").strip()
 
         try:
             reply = _post_chat(payload, api_key, api_url)
@@ -93,12 +93,19 @@ def register_chat_routes(app):
         except requests.exceptions.Timeout:
             return jsonify({"success": False, "error": "OpenRouter timeout, try again"}), 504
         except requests.exceptions.HTTPError as exc:
-            status = exc.response.status_code if exc.response else None
-            text = ""
+            resp = exc.response
+            status = resp.status_code if resp is not None else None
             try:
-                text = exc.response.text or ""
+                text = resp.text or ""
             except Exception:
                 text = ""
+
+            if status == 401:
+                return jsonify({
+                    "success": False,
+                    "error": "OpenRouter rejected the API key (401). Check that OPENROUTER_API_KEY is correct and active."
+                }), 502
+
             return jsonify({"success": False, "error": f"OpenRouter HTTP {status}: {text}"}), 502
         except requests.exceptions.RequestException as exc:
             msg = str(exc)
