@@ -11,7 +11,7 @@ import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 from . import advanced_routes, auth_routes, chat_routes, ecc_routes, encryption_routes, history_routes, tutorials
 from .db_helpers import init_db
@@ -67,6 +67,12 @@ def _register_base_pages(app):
     def signup_page():
         """Signup page (standalone card UI)."""
         return render_template('signup.html')
+
+    @app.route('/reset')
+    def reset_page():
+        """Password reset page (token via query parameter)."""
+        token = request.args.get('token', '')
+        return render_template('reset.html', token=token)
 
 
 # Provide a module-level application instance for WSGI servers.

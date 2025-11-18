@@ -2029,6 +2029,73 @@
             }
         }
 
+        function showForgotPassword(ev){
+            if (ev && ev.preventDefault) ev.preventDefault();
+            const loginForm = document.getElementById('loginForm');
+            const forgotForm = document.getElementById('forgotForm');
+            const loginUsername = document.getElementById('loginUsername');
+            const forgotUsername = document.getElementById('forgotUsername');
+            const msgEl = document.getElementById('forgotMsg');
+            const errEl = document.getElementById('forgotUsernameErr');
+            if (msgEl) msgEl.textContent = '';
+            if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+            if (forgotUsername && loginUsername) {
+                forgotUsername.value = (loginUsername.value || '').trim();
+            }
+            if (loginForm && forgotForm) {
+                loginForm.style.display = 'none';
+                forgotForm.style.display = 'block';
+            }
+        }
+
+        function cancelForgotPassword(){
+            const loginForm = document.getElementById('loginForm');
+            const forgotForm = document.getElementById('forgotForm');
+            const msgEl = document.getElementById('forgotMsg');
+            const errEl = document.getElementById('forgotUsernameErr');
+            if (msgEl) msgEl.textContent = '';
+            if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+            if (loginForm && forgotForm) {
+                forgotForm.style.display = 'none';
+                loginForm.style.display = 'block';
+            }
+        }
+
+        async function submitForgotPassword(){
+            const usernameInput = document.getElementById('forgotUsername');
+            const errEl = document.getElementById('forgotUsernameErr');
+            const msgEl = document.getElementById('forgotMsg');
+            const username = (usernameInput && usernameInput.value || '').trim();
+            if (!username) {
+                if (errEl) {
+                    errEl.textContent = 'Username is required';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+            if (msgEl) msgEl.textContent = 'Sending reset link...';
+            try{
+                const res = await fetch('/api/password/forgot', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({username}),
+                    credentials:'same-origin'
+                });
+                const data = await res.json();
+                if(!res.ok || !data.success){
+                    if (msgEl) msgEl.textContent = data.message || 'Could not start reset flow';
+                    return;
+                }
+                let msg = data.message || 'If the account exists, a reset link was prepared.';
+                if(data.masked_email){ msg += ` Email on file: ${data.masked_email}`; }
+                if(data.dev_token){ msg += ' (Dev token present; email may not be sent in this environment.)'; }
+                if (msgEl) msgEl.textContent = msg;
+            }catch(e){
+                if (msgEl) msgEl.textContent = 'Could not start reset flow';
+            }
+        }
+
         async function submitLoginCard(){
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;

@@ -1,7 +1,8 @@
-        
+
         function setErr(id,msg){ const el=document.getElementById(id); if(!el) return; el.textContent=msg||''; }
 
         async function submitSignupCard(){
+            const e = document.getElementById('suEmail').value.trim();
             const u = document.getElementById('suUsername').value.trim();
             
             const p = document.getElementById('suPassword').value;
@@ -10,6 +11,8 @@
             msg.textContent='';
 
             let ok = true;
+            const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+            setErr('suEmailErr', !e? 'Email is required': (!emailValid? 'Enter a valid email':'') ); if(!e || !emailValid) ok=false;
             setErr('suUsernameErr', !u? 'Username is required':'' ); if(!u) ok=false;
             
             setErr('suPasswordErr', !p? 'Password is required':'' ); if(!p) ok=false;
@@ -18,7 +21,7 @@
 
             msg.textContent='Creating account...';
             try{
-                const res = await fetch('/api/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p}) });
+                const res = await fetch('/api/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email:e, username:u, password:p}) });
                 const data = await res.json();
                 if(!res.ok || !data.success){ msg.textContent = data.message || 'Could not create account'; return; }
                 window.location.href = '/app';

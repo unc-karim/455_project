@@ -195,7 +195,7 @@
                     <div class="auth-title">Sign in</div>
                     <div class="auth-sub">Access your elliptic curve workspace.</div>
                 </div>
-                <div class="auth-form">
+                <div class="auth-form" id="loginForm">
                     <div class="auth-field">
                         <svg class="auth-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
                         <input id="loginUsername" type="text" placeholder="Username">
@@ -207,7 +207,7 @@
                         <div id="loginPasswordErr" class="field-error" style="display:none;"></div>
                     </div>
                     <div class="auth-right-row">
-                        <a class="auth-right-link" href="#" onclick="alert('Reset link flow not implemented')">Forgot password?</a>
+                        <a class="auth-right-link" href="#" onclick="showForgotPassword(event)">Forgot password?</a>
                     </div>
                     <button class="btn-primary-dark" onclick="submitLoginCard()">Get Started</button>
                     <div class="auth-sep"><div class="line"></div><div class="txt">Or</div><div class="line"></div></div>
@@ -216,6 +216,16 @@
                         <button class="btn-pill ghost" onclick="continueAsGuestCard()">Continue as guest</button>
                     </div>
                     <div id="authMsgOverlay" class="auth-msg" aria-live="polite"></div>
+                </div>
+
+                <div class="auth-form" id="forgotForm" style="display:none;">
+                    <div class="auth-field">
+                        <input id="forgotUsername" type="text" placeholder="Username">
+                        <div id="forgotUsernameErr" class="field-error" style="display:none;"></div>
+                    </div>
+                    <button class="btn-primary-dark" onclick="submitForgotPassword()">Send reset link</button>
+                    <button class="btn-pill ghost" type="button" onclick="cancelForgotPassword()">Back to sign in</button>
+                    <div id="forgotMsg" class="auth-msg" aria-live="polite"></div>
                 </div>
             </div>
         </div>
