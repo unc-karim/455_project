@@ -15,6 +15,11 @@ Copy `.env` (provided) and replace values as needed:
 ```
 FLASK_SECRET_KEY=change-me        # generate a real secret for sessions
 DB_PATH=./app.db                  # adjust if you want a different location
+SMTP_HOST=...                     # optional: configure if using email reset
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+SMTP_FROM=...
 ```
 
 ### Install and run
