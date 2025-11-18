@@ -17,13 +17,14 @@ def register_auth_routes(app):
 
     @app.route('/api/signup', methods=['POST'])
     def signup():
-        data = request.get_json()
+        # Accept optional email so the UI (which only asks for username/password) succeeds.
+        data = request.get_json(silent=True) or {}
         username = data.get('username', '').strip()
         password = data.get('password', '')
-        email = data.get('email', '').strip()
+        email = (data.get('email') or '').strip() or None
 
-        if not username or not password or not email:
-            return jsonify({'success': False, 'message': 'Username, password, and email are required'}), 400
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Username and password are required'}), 400
 
         conn = get_db()
         try:
@@ -50,14 +51,15 @@ def register_auth_routes(app):
     @app.route('/api/login', methods=['POST'])
     @app.route('/api/auth/login', methods=['POST'])
     def login():
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         username = data.get('username', '').strip()
         password = data.get('password', '')
 
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Username and password are required'}), 400
+
         conn = get_db()
         try:
-            if not username:
-                return jsonify({'success': False, 'message': 'Username is required'}), 400
             cur = conn.execute(
                 "SELECT id, username, password_hash, is_guest FROM users WHERE username = ?",
                 (username,),
