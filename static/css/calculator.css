@@ -1967,8 +1967,15 @@
             align-items: center;
             justify-content: center;
             font-size: 1.4em;
-            cursor: pointer;
+            cursor: grab;
+            touch-action: none;
             transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
+        }
+        .chat-assistant.dragging .chat-fab {
+            cursor: grabbing;
+        }
+        .chat-assistant.dragging {
+            transition: none;
         }
         .chat-fab:hover {
             transform: translateY(-2px) scale(1.03);
