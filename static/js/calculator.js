@@ -6205,11 +6205,18 @@ function getOperationIcon(type){
             const chatInput = document.getElementById('chatInput');
             const chatMessages = document.getElementById('chatMessages');
             const chatStatus = document.getElementById('chatStatus');
+            const chatAssistant = document.querySelector('.chat-assistant');
 
-            if (!chatWindow || !toggleBtn || !chatForm || !chatMessages || !chatStatus) return;
+            if (!chatWindow || !toggleBtn || !chatForm || !chatMessages || !chatStatus || !chatAssistant) return;
 
             let sending = false;
             const history = [];
+            let dragging = false;
+            let dragMoved = false;
+            let suppressToggle = false;
+            let customPosition = false;
+            let dragStart = { x: 0, y: 0 };
+            let startPosition = { x: 0, y: 0 };
 
             function scrollMessages() {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -6221,6 +6228,73 @@ function getOperationIcon(type){
                 toggleBtn.classList.toggle('active', shouldOpen);
                 if (shouldOpen) {
                     setTimeout(() => chatInput && chatInput.focus(), 120);
+                }
+            }
+
+            // Allow users to drag the floating assistant to a comfortable spot.
+            function moveAssistant(left, top) {
+                const padding = 8;
+                const isOpen = chatWindow.classList.contains('open');
+                const fabWidth = toggleBtn.offsetWidth || 60;
+                const fabHeight = toggleBtn.offsetHeight || 60;
+
+                // Use only a portion of the chat window size so dragging feels less constrained.
+                const targetWidth = isOpen
+                    ? Math.max(Math.floor((chatWindow.offsetWidth || fabWidth) * 0.65), fabWidth)
+                    : fabWidth;
+                const targetHeight = isOpen
+                    ? Math.max(Math.floor((chatWindow.offsetHeight || fabHeight) * 0.4), fabHeight)
+                    : fabHeight;
+
+                const minLeft = -Math.min(targetWidth * 0.3, 120);
+                const maxLeft = window.innerWidth - padding;
+                const minTop = -Math.min(targetHeight * 0.15, 60);
+                const maxTop = window.innerHeight - padding;
+
+                const clampedLeft = Math.min(Math.max(left, minLeft), maxLeft);
+                const clampedTop = Math.min(Math.max(top, minTop), maxTop);
+
+                chatAssistant.style.left = `${clampedLeft}px`;
+                chatAssistant.style.top = `${clampedTop}px`;
+                chatAssistant.style.right = 'auto';
+                chatAssistant.style.bottom = 'auto';
+            }
+
+            function startDrag(event) {
+                if (event.button !== undefined && event.button !== 0) return;
+                dragging = true;
+                dragMoved = false;
+                dragStart = { x: event.clientX, y: event.clientY };
+                const rect = chatAssistant.getBoundingClientRect();
+                startPosition = { x: rect.left, y: rect.top };
+                chatAssistant.classList.add('dragging');
+                window.addEventListener('pointermove', onDragMove);
+                window.addEventListener('pointerup', endDrag);
+                window.addEventListener('pointercancel', endDrag);
+            }
+
+            function onDragMove(event) {
+                if (!dragging) return;
+                event.preventDefault();
+                const deltaX = event.clientX - dragStart.x;
+                const deltaY = event.clientY - dragStart.y;
+                if (Math.abs(deltaX) + Math.abs(deltaY) > 3) {
+                    dragMoved = true;
+                }
+                moveAssistant(startPosition.x + deltaX, startPosition.y + deltaY);
+            }
+
+            function endDrag() {
+                if (!dragging) return;
+                dragging = false;
+                chatAssistant.classList.remove('dragging');
+                window.removeEventListener('pointermove', onDragMove);
+                window.removeEventListener('pointerup', endDrag);
+                window.removeEventListener('pointercancel', endDrag);
+                if (dragMoved) {
+                    customPosition = true;
+                    suppressToggle = true;
+                    setTimeout(() => { suppressToggle = false; }, 200);
                 }
             }
 
@@ -6288,7 +6362,15 @@ function getOperationIcon(type){
                 }
             }
 
-            toggleBtn.addEventListener('click', () => toggleChat());
+            toggleBtn.addEventListener('pointerdown', startDrag);
+            toggleBtn.addEventListener('click', (e) => {
+                if (suppressToggle) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+                toggleChat();
+            });
             if (closeBtn) closeBtn.addEventListener('click', () => toggleChat(false));
             chatForm.addEventListener('submit', sendChat);
             if (chatInput) {
@@ -6304,6 +6386,12 @@ function getOperationIcon(type){
                 if (e.key === 'Escape' && chatWindow.classList.contains('open')) {
                     toggleChat(false);
                 }
+            });
+
+            window.addEventListener('resize', () => {
+                if (!customPosition) return;
+                const rect = chatAssistant.getBoundingClientRect();
+                moveAssistant(rect.left, rect.top);
             });
         }
 
