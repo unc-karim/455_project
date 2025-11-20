@@ -211,12 +211,256 @@ def register_advanced_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
 
+    @app.route('/api/discrete_log_init', methods=['POST'])
+    def api_discrete_log_init():
+        """
+        Initialize discrete logarithm demo by finding a good base point G
+        Returns curve info, base point G, and its order n
+        """
+        try:
+            data = request.get_json()
+            a = int(data['a'])
+            b = int(data['b'])
+            p = int(data['p'])
+
+            curve = EllipticCurve(a, b, p)
+            points = curve.find_all_points()
+
+            # Find a good generator (point with large order)
+            best_point = None
+            best_order = 0
+
+            for pt in points:
+                if pt != (None, None):
+                    order = curve.get_order(pt)
+                    if order > best_order:
+                        best_order = order
+                        best_point = pt
+                    # If we find a generator (order = group size), use it
+                    if order == len(points):
+                        break
+
+            if best_point is None:
+                return jsonify({'success': False, 'error': 'No suitable base point found'}), 400
+
+            return jsonify({
+                'success': True,
+                'curve': {
+                    'a': a,
+                    'b': b,
+                    'p': p,
+                    'equation': f'y² ≡ x³ + {a}x + {b} (mod {p})'
+                },
+                'base_point': {
+                    'x': best_point[0],
+                    'y': best_point[1],
+                    'display': f'G = ({best_point[0]}, {best_point[1]})'
+                },
+                'order': best_order,
+                'group_size': len(points),
+                'is_generator': best_order == len(points)
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+    @app.route('/api/discrete_log_compute_public', methods=['POST'])
+    def api_discrete_log_compute_public():
+        """
+        Compute public key Q = k*G for discrete log demo
+        """
+        try:
+            data = request.get_json()
+            a = int(data['a'])
+            b = int(data['b'])
+            p = int(data['p'])
+            k = int(data['k'])
+            G = data['G']
+
+            if G['x'] is None or G['y'] is None:
+                return jsonify({'success': False, 'error': 'Invalid base point'}), 400
+
+            base_point = (G['x'], G['y'])
+
+            curve = EllipticCurve(a, b, p)
+
+            # Verify base point is on curve
+            if not curve.is_point_on_curve(base_point[0], base_point[1]):
+                return jsonify({'success': False, 'error': 'Base point not on curve'}), 400
+
+            # Compute Q = k*G
+            Q = curve.scalar_multiply(k, base_point)
+
+            return jsonify({
+                'success': True,
+                'k': k,
+                'G': {'x': base_point[0], 'y': base_point[1]},
+                'Q': {
+                    'x': Q[0] if Q != (None, None) else None,
+                    'y': Q[1] if Q != (None, None) else None,
+                    'display': f'Q = ({Q[0]}, {Q[1]})' if Q != (None, None) else 'Q = O'
+                }
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+    @app.route('/api/discrete_log_bruteforce', methods=['POST'])
+    def api_discrete_log_bruteforce():
+        """
+        Brute force discrete logarithm: find k such that Q = k*G
+        """
+        try:
+            import math
+            import time
+
+            data = request.get_json()
+            a = int(data['a'])
+            b = int(data['b'])
+            p = int(data['p'])
+            G_data = data['G']
+            Q_data = data['Q']
+            max_k = int(data.get('max_k', 2000))
+            use_bsgs = data.get('use_bsgs', False)
+
+            G = (G_data['x'], G_data['y'])
+            Q = (Q_data['x'], Q_data['y']) if Q_data.get('x') is not None else (None, None)
+
+            curve = EllipticCurve(a, b, p)
+
+            # Get point order
+            point_order = curve.get_order(G)
+            if point_order <= 0:
+                point_order = len(curve.find_all_points())
+
+            start_time = time.time()
+            attempts = []
+            found_k = None
+            algorithm_used = 'brute_force'
+            steps_taken = 0
+
+            # Decide algorithm based on max_k
+            if max_k <= 100 or not use_bsgs:
+                # Brute force approach
+                algorithm_used = 'brute_force'
+                show_all = max_k <= 50
+
+                for k in range(1, min(max_k + 1, point_order)):
+                    result = curve.scalar_multiply(k, G)
+                    steps_taken += 1
+
+                    # Show all steps if k is small, or sample if large
+                    if show_all or k <= 10 or k >= max_k - 5 or k % (max_k // 10 + 1) == 0:
+                        attempts.append({
+                            'k': k,
+                            'label': f'Try k = {k}',
+                            'result': {
+                                'x': result[0] if result != (None, None) else None,
+                                'y': result[1] if result != (None, None) else None
+                            },
+                            'match': result == Q
+                        })
+
+                    if result == Q:
+                        found_k = k
+                        break
+            else:
+                # Baby-step Giant-step algorithm
+                algorithm_used = 'baby_step_giant_step'
+                m = int(math.ceil(math.sqrt(min(max_k, point_order))))
+
+                # Baby steps: compute j*G for j = 0, 1, ..., m-1
+                baby_steps = {}
+                current = (None, None)
+
+                for j in range(m):
+                    baby_steps[current] = j
+
+                    if j < 5 or j == m - 1:
+                        attempts.append({
+                            'phase': 'baby_step',
+                            'k': j,
+                            'label': f'Baby step: {j}*G',
+                            'result': {
+                                'x': current[0] if current != (None, None) else None,
+                                'y': current[1] if current != (None, None) else None
+                            },
+                            'match': False
+                        })
+
+                    if j < m - 1:
+                        current = curve.add_points(current, G)
+
+                steps_taken += m
+
+                # Giant steps: compute Q - i*m*G for i = 0, 1, 2, ...
+                mG = curve.scalar_multiply(m, G)
+                minus_mG = (mG[0], (-mG[1]) % p) if mG != (None, None) else (None, None)
+
+                gamma = Q
+                for i in range(m):
+                    if gamma in baby_steps:
+                        j = baby_steps[gamma]
+                        found_k = i * m + j
+
+                        attempts.append({
+                            'phase': 'giant_step',
+                            'k': found_k,
+                            'label': f'Found! k = {found_k}',
+                            'result': {
+                                'x': gamma[0] if gamma != (None, None) else None,
+                                'y': gamma[1] if gamma != (None, None) else None
+                            },
+                            'match': True
+                        })
+                        break
+
+                    if i < 5:
+                        attempts.append({
+                            'phase': 'giant_step',
+                            'k': f'{i}*{m}',
+                            'label': f'Giant step: Q - {i}*{m}*G',
+                            'result': {
+                                'x': gamma[0] if gamma != (None, None) else None,
+                                'y': gamma[1] if gamma != (None, None) else None
+                            },
+                            'match': False
+                        })
+
+                    gamma = curve.add_points(gamma, minus_mG)
+                    steps_taken += 1
+
+            elapsed_time = time.time() - start_time
+
+            # Educational notes
+            brute_force_ops = min(max_k, point_order)
+            bsgs_ops = 2 * int(math.sqrt(point_order))
+
+            return jsonify({
+                'success': True,
+                'found': found_k is not None,
+                'k': found_k,
+                'algorithm': algorithm_used,
+                'steps_taken': steps_taken,
+                'time_seconds': elapsed_time,
+                'attempts': attempts,
+                'point_order': point_order,
+                'complexity': {
+                    'brute_force': brute_force_ops,
+                    'bsgs': bsgs_ops,
+                    'speedup': brute_force_ops / max(bsgs_ops, 1)
+                },
+                'explanation': (
+                    f"On this tiny curve with order {point_order}, we can brute-force the discrete log. "
+                    f"On real curves (256-bit), this is infeasible: even Baby-step Giant-step would need ~2^128 operations!"
+                )
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
     @app.route('/api/discrete_log_demo', methods=['POST'])
     def api_discrete_log_demo():
         """
-        Demonstrate the discrete logarithm problem
-        Given P and Q, try to find k such that Q = kP
-        Uses Baby-step Giant-step algorithm for larger values
+        DEPRECATED: Use the new three-endpoint workflow instead
+        (kept for backward compatibility)
         """
         try:
             import math

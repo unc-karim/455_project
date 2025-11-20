@@ -651,59 +651,171 @@
 
                 <div id="discreteLogPane" class="subtab-pane">
                     <div class="panel">
-                        <h2>Discrete Logarithm Problem</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Interactive demonstration of computational hardness</p>
-
-                        <div class="form-group">
-                            <label for="dlogCurvePreset">Preset Curves</label>
-                            <select id="dlogCurvePreset" onchange="loadDLogPreset(this.value)">
-                                <option value="e23">E₂₃(1,1) - Tiny example</option>
-                                <option value="e31">E₃₁(2,3) - Small example</option>
-                                <option value="e47" selected>E₄₇(5,7) - Medium example</option>
-                                <option value="e97">E₉₇(2,3) - Default</option>
-                            </select>
+                        <div style="text-align: center; margin-bottom: 30px;">
+                            <h2 style="margin-bottom: 10px; color: var(--text-primary);">Elliptic Curve Discrete Logarithm Problem</h2>
+                            <p style="color: var(--text-secondary); font-size: 1.05em; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+                                This interactive demo shows why elliptic curve cryptography is secure.
+                                <br>Computing Q = k×G is easy, but finding k from Q is hard!
+                            </p>
                         </div>
 
-                        <div class="form-group">
-                            <div class="inline-inputs">
-                                <div>
-                                    <label for="dlogParamA">a</label>
-                                    <input type="number" id="dlogParamA" value="5" placeholder="a">
-                                </div>
-                                <div>
-                                    <label for="dlogParamB">b</label>
-                                    <input type="number" id="dlogParamB" value="7" placeholder="b">
-                                </div>
-                                <div>
-                                    <label for="dlogParamP">p (prime)</label>
-                                    <input type="number" id="dlogParamP" value="47" placeholder="p">
-                                </div>
+                        <!-- Progress Indicator -->
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 30px; gap: 10px;">
+                            <div id="dlogProgress1" style="flex: 1; text-align: center; padding: 12px; background: rgba(59, 130, 246, 0.2); border-radius: 8px; border: 3px solid #3b82f6; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);">
+                                <div style="font-size: 1.5em; margin-bottom: 4px; color: var(--text-primary);">①</div>
+                                <div style="font-size: 0.85em; font-weight: 600; color: #3b82f6;">Setup Curve</div>
+                            </div>
+                            <div id="dlogProgress2" style="flex: 1; text-align: center; padding: 12px; background: rgba(156, 163, 175, 0.15); border-radius: 8px; border: 3px solid #9ca3af; opacity: 0.6;">
+                                <div style="font-size: 1.5em; margin-bottom: 4px; color: var(--text-primary);">②</div>
+                                <div style="font-size: 0.85em; font-weight: 600; color: #6b7280;">Compute Q</div>
+                            </div>
+                            <div id="dlogProgress3" style="flex: 1; text-align: center; padding: 12px; background: rgba(156, 163, 175, 0.15); border-radius: 8px; border: 3px solid #9ca3af; opacity: 0.6;">
+                                <div style="font-size: 1.5em; margin-bottom: 4px; color: var(--text-primary);">③</div>
+                                <div style="font-size: 0.85em; font-weight: 600; color: #6b7280;">Attack</div>
                             </div>
                         </div>
 
-                    <div class="form-group">
-                        <label for="dlogScalar">Scalar k (1-2000)</label>
-                        <input type="number" id="dlogScalar" value="5" min="1" max="2000" placeholder="k">
+                        <!-- Step 1: Initialize Curve -->
+                        <div id="dlogStep1Panel" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%);
+                            padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 3px solid rgba(59, 130, 246, 0.5); box-shadow: 0 2px 12px rgba(59, 130, 246, 0.12);">
+
+                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                                <div style="width: 36px; height: 36px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: bold; font-size: 1.2em; color: white; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);">①</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #2563eb; font-size: 1.1em; font-weight: 700;">Setup Elliptic Curve</h3>
+                                    <p style="margin: 2px 0 0 0; color: var(--text-secondary); font-size: 0.9em;">Choose curve parameters and find a base point G</p>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dlogCurvePreset" style="font-weight: 500;">Quick Select Curve</label>
+                                <select id="dlogCurvePreset" onchange="loadDLogPreset(this.value)" style="font-size: 0.95em;">
+                                    <option value="e23">E₂₃(1,1) - Tiny (23 points) - Great for learning!</option>
+                                    <option value="e31">E₃₁(2,3) - Small (39 points) - Fast demo</option>
+                                    <option value="e47" selected>E₄₇(5,7) - Medium (51 points) - Recommended</option>
+                                    <option value="e97">E₉₇(2,3) - Larger (100 points) - More realistic</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label style="font-weight: 500; margin-bottom: 8px; display: block;">Or Customize Parameters</label>
+                                <div class="inline-inputs">
+                                    <div>
+                                        <label for="dlogParamA">a</label>
+                                        <input type="number" id="dlogParamA" value="5" placeholder="a">
+                                    </div>
+                                    <div>
+                                        <label for="dlogParamB">b</label>
+                                        <input type="number" id="dlogParamB" value="7" placeholder="b">
+                                    </div>
+                                    <div>
+                                        <label for="dlogParamP">p (prime)</label>
+                                        <input type="number" id="dlogParamP" value="47" placeholder="p">
+                                    </div>
+                                </div>
+                                <small style="color: #888; display: block; margin-top: 6px;">
+                                    Curve equation: y² ≡ x³ + ax + b (mod p)
+                                </small>
+                            </div>
+
+                            <button onclick="initDiscreteLogDemo()" style="width: 100%; padding: 14px; font-size: 1em; font-weight: 600; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.2s;">
+                                <i class="fa-solid fa-play" style="margin-right: 8px;"></i>Start: Initialize Curve
+                            </button>
+
+                            <div id="dlogCurveInfo" style="margin-top: 15px;"></div>
+                        </div>
+
+                        <!-- Step 2: Compute Public Key -->
+                        <div id="dlogStep2Panel" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%);
+                            padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 3px solid rgba(16, 185, 129, 0.5); box-shadow: 0 2px 12px rgba(16, 185, 129, 0.12); opacity: 0.6;">
+
+                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                                <div style="width: 36px; height: 36px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: bold; font-size: 1.2em; color: white; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">②</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #059669; font-size: 1.1em; font-weight: 700;">Compute Public Key</h3>
+                                    <p style="margin: 2px 0 0 0; color: var(--text-secondary); font-size: 0.9em;">Pick a secret k and compute Q = k × G</p>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(16, 185, 129, 0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #10b981;">
+                                <p style="margin: 0; color: var(--text-primary); font-size: 0.9em; line-height: 1.5;">
+                                    <strong>🔑 What's happening:</strong> In real crypto, k is your private key (kept secret) and Q is your public key (shared with others). Computing Q from k is easy and fast.
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="dlogScalar" style="font-weight: 500;">
+                                    Choose Your Private Key k
+                                    <span id="dlogKRange" style="color: #10b981; font-weight: 600;"></span>
+                                </label>
+                                <input type="number" id="dlogScalar" value="5" min="1" placeholder="Enter k" style="font-size: 1em; padding: 10px;">
+                                <small style="display:block; margin-top:6px; color: var(--text-muted);">
+                                    💡 Tip: Start with small values (5-20) to see the brute-force clearly!
+                                </small>
+                            </div>
+
+                            <button onclick="computeDiscreteLogPublicKey()" id="dlogComputeBtn" disabled
+                                style="width: 100%; padding: 14px; font-size: 1em; font-weight: 600; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.2s;">
+                                <i class="fa-solid fa-calculator" style="margin-right: 8px;"></i>Compute Public Key Q = k × G
+                            </button>
+
+                            <div id="dlogPublicKeyResult" style="margin-top: 15px;"></div>
+                        </div>
+
+                        <!-- Step 3: Brute Force Attack -->
+                        <div id="dlogStep3Panel" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+                            padding: 20px; border-radius: 12px; border: 3px solid rgba(239, 68, 68, 0.5); box-shadow: 0 2px 12px rgba(239, 68, 68, 0.12); opacity: 0.6;">
+
+                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                                <div style="width: 36px; height: 36px; background: #ef4444; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: bold; font-size: 1.2em; color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);">③</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #dc2626; font-size: 1.1em; font-weight: 700;">Attack: Find the Private Key</h3>
+                                    <p style="margin: 2px 0 0 0; color: var(--text-secondary); font-size: 0.9em;">Try to recover k by testing all possibilities</p>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(239, 68, 68, 0.15); padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ef4444;">
+                                <p style="margin: 0; color: var(--text-primary); font-size: 0.9em; line-height: 1.5;">
+                                    <strong>⚠️ The Challenge:</strong> Given only G and Q, an attacker must try k' = 1, 2, 3... until they find k' where k'×G = Q. This is the hard problem that makes ECC secure!
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-inline" style="display: flex; align-items: center; font-weight: 500; cursor: pointer;">
+                                    <input type="checkbox" id="dlogUseBsgs" checked style="margin-right: 8px;">
+                                    <span>Enable Smart Algorithm (Baby-step Giant-step)</span>
+                                </label>
+                                <small style="display:block; margin-top:6px; margin-left: 24px; color: var(--text-muted);">
+                                    BSGS reduces complexity from O(n) to O(√n), but still shows key attempts. Automatically used for k &gt; 100.
+                                </small>
+                            </div>
+
+                            <button onclick="bruteForceDiscreteLog()" id="dlogBruteforceBtn" disabled
+                                style="width: 100%; padding: 14px; font-size: 1em; font-weight: 600; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.2s;">
+                                <i class="fa-solid fa-bolt" style="margin-right: 8px;"></i>Launch Attack: Brute Force Discrete Log!
+                            </button>
+
+                            <div id="dlogBruteforceResult" style="margin-top: 15px;"></div>
+                        </div>
+
                     </div>
 
-                    <div class="form-group">
-                        <label class="checkbox-inline">
-                            <input type="checkbox" id="dlogUseBsgs" checked>
-                            Prefer Baby-step Giant-step when k is large
-                        </label>
-                        <small style="display:block; margin-top:4px; color: var(--text-muted);">
-                            BSGS speeds up the demo for large scalars (k &gt; 100) but shows fewer explicit steps.
-                        </small>
-                    </div>
-
-                        <button onclick="runDiscreteLogDemo()">Start Discrete Log Demo</button>
-
-                        <div id="dlogDemoResult"></div>
-                    </div>
                     <div class="panel">
-                        <h2>Brute Force Attempts</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Watch the algorithm try to find k</p>
-                        <div id="dlogStepsContainer" style="max-height: 500px; overflow-y: auto;"></div>
+                        <div style="border-bottom: 2px solid var(--bg-tertiary); padding-bottom: 12px; margin-bottom: 15px;">
+                            <h2 style="margin: 0; display: flex; align-items: center;">
+                                <i class="fa-solid fa-list-check" style="margin-right: 10px; color: #3b82f6;"></i>
+                                Attack Progress
+                            </h2>
+                            <p style="margin: 8px 0 0 0; color: #888;">Watch the algorithm test each value of k' in real-time</p>
+                        </div>
+
+                        <div id="dlogStepsContainer" style="max-height: 500px; overflow-y: auto; background: var(--bg-secondary); padding: 15px; border-radius: 8px; border: 1px solid var(--bg-tertiary);">
+                            <div style="text-align: center; padding: 40px 20px;">
+                                <div style="font-size: 3em; color: #555; margin-bottom: 15px;">🔍</div>
+                                <p style="color: #888; font-size: 1.05em; margin: 0;">No attack in progress</p>
+                                <p style="color: #666; font-size: 0.9em; margin: 8px 0 0 0;">Complete Steps 1 & 2, then launch the brute-force attack to see attempts here.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

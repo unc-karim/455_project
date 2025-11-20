@@ -5401,6 +5401,321 @@ function getOperationIcon(type){
             }).join('');
         }
 
+        // =================== NEW IMPROVED DISCRETE LOG DEMO (3-STEP WORKFLOW) =================== //
+
+        let dlogState = {
+            curve: null,
+            basePoint: null,
+            order: null,
+            privateKey: null,
+            publicKey: null
+        };
+
+        function updateDlogProgress(step) {
+            // Update progress indicators
+            const progress1 = document.getElementById('dlogProgress1');
+            const progress2 = document.getElementById('dlogProgress2');
+            const progress3 = document.getElementById('dlogProgress3');
+            const panel1 = document.getElementById('dlogStep1Panel');
+            const panel2 = document.getElementById('dlogStep2Panel');
+            const panel3 = document.getElementById('dlogStep3Panel');
+
+            if (!progress1) return; // Not on the discrete log page
+
+            // Reset all
+            [progress1, progress2, progress3].forEach(p => {
+                p.style.opacity = '0.5';
+                p.style.border = '2px solid #555';
+            });
+            [panel1, panel2, panel3].forEach(p => {
+                p.style.opacity = '0.6';
+            });
+
+            // Highlight current and completed steps
+            if (step >= 1) {
+                progress1.style.opacity = '1';
+                progress1.style.border = '2px solid #3b82f6';
+                progress1.style.background = 'rgba(59, 130, 246, 0.15)';
+                panel1.style.opacity = '1';
+            }
+            if (step >= 2) {
+                progress2.style.opacity = '1';
+                progress2.style.border = '2px solid #10b981';
+                progress2.style.background = 'rgba(16, 185, 129, 0.15)';
+                panel2.style.opacity = '1';
+            }
+            if (step >= 3) {
+                progress3.style.opacity = '1';
+                progress3.style.border = '2px solid #ef4444';
+                progress3.style.background = 'rgba(239, 68, 68, 0.15)';
+                panel3.style.opacity = '1';
+            }
+        }
+
+        async function initDiscreteLogDemo() {
+            const a = Number.parseInt(document.getElementById('dlogParamA').value, 10);
+            const b = Number.parseInt(document.getElementById('dlogParamB').value, 10);
+            const p = Number.parseInt(document.getElementById('dlogParamP').value, 10);
+
+            if ([a, b, p].some(value => Number.isNaN(value))) {
+                showToast('Please enter valid curve parameters', 'error');
+                return;
+            }
+
+            showLoading('Initializing curve...', 'Finding best base point G');
+
+            try {
+                const response = await fetch('/api/discrete_log_init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ a, b, p })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    dlogState.curve = data.curve;
+                    dlogState.basePoint = data.base_point;
+                    dlogState.order = data.order;
+
+                    const infoDiv = document.getElementById('dlogCurveInfo');
+                    infoDiv.innerHTML = `
+                        <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; border: 2px solid #10b981;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1.5em; margin-right: 10px;"></i>
+                                <h4 style="margin: 0; color: #10b981; font-size: 1.1em;">Curve Ready!</h4>
+                            </div>
+                            <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px; margin-bottom: 8px;">
+                                <p style="margin: 0; color: #888; font-size: 0.85em; font-weight: 500;">CURVE EQUATION</p>
+                                <p style="margin: 4px 0 0 0; color: #fff; font-size: 1em; font-family: monospace;">${escapeHtml(data.curve.equation)}</p>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                                <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px;">
+                                    <p style="margin: 0; color: #888; font-size: 0.8em;">BASE POINT G</p>
+                                    <p style="margin: 4px 0 0 0; color: #10b981; font-weight: 600; font-family: monospace;">(${data.base_point.x}, ${data.base_point.y})</p>
+                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px;">
+                                    <p style="margin: 0; color: #888; font-size: 0.8em;">ORDER n ${data.is_generator ? '✓' : ''}</p>
+                                    <p style="margin: 4px 0 0 0; color: #10b981; font-weight: 600;">${data.order} ${data.is_generator ? '(Generator!)' : ''}</p>
+                                </div>
+                            </div>
+                            <p style="margin: 10px 0 0 0; color: #888; font-size: 0.85em; text-align: center;">
+                                Total points on curve: ${data.group_size}
+                            </p>
+                        </div>
+                    `;
+
+                    // Update k range hint
+                    document.getElementById('dlogKRange').textContent = `(valid: 1 to ${data.order - 1})`;
+                    document.getElementById('dlogScalar').max = data.order - 1;
+
+                    // Enable step 2 and update progress
+                    document.getElementById('dlogComputeBtn').disabled = false;
+                    updateDlogProgress(2);
+
+                    // Reset step 2 and 3
+                    document.getElementById('dlogPublicKeyResult').innerHTML = '';
+                    document.getElementById('dlogBruteforceResult').innerHTML = '';
+                    document.getElementById('dlogStepsContainer').innerHTML = `
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <div style="font-size: 3em; color: #10b981; margin-bottom: 15px;">✓</div>
+                            <p style="color: #10b981; font-size: 1.1em; margin: 0; font-weight: 600;">Step 1 Complete!</p>
+                            <p style="color: #888; font-size: 0.95em; margin: 8px 0 0 0;">Now proceed to Step 2 to choose your private key k.</p>
+                        </div>
+                    `;
+                    document.getElementById('dlogBruteforceBtn').disabled = true;
+
+                    showToast('✓ Curve initialized! Now choose a private key k.', 'success');
+                } else {
+                    showToast(data.error || 'Failed to initialize', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function computeDiscreteLogPublicKey() {
+            if (!dlogState.curve || !dlogState.basePoint) {
+                showToast('Please initialize the curve first', 'warning');
+                return;
+            }
+
+            const k = Number.parseInt(document.getElementById('dlogScalar').value, 10);
+            if (Number.isNaN(k) || k < 1 || k >= dlogState.order) {
+                showToast(`Private key k must be between 1 and ${dlogState.order - 1}`, 'error');
+                return;
+            }
+
+            showLoading('Computing public key...', `Q = ${k} × G`);
+
+            try {
+                const response = await fetch('/api/discrete_log_compute_public', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: dlogState.curve.a,
+                        b: dlogState.curve.b,
+                        p: dlogState.curve.p,
+                        k: k,
+                        G: dlogState.basePoint
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    dlogState.privateKey = k;
+                    dlogState.publicKey = data.Q;
+
+                    const resultDiv = document.getElementById('dlogPublicKeyResult');
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; border: 2px solid #3b82f6;">
+                            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                <i class="fa-solid fa-circle-check" style="color: #3b82f6; font-size: 1.5em; margin-right: 10px;"></i>
+                                <h4 style="margin: 0; color: #3b82f6; font-size: 1.1em;">Public Key Generated!</h4>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px;">
+                                    <p style="margin: 0; color: #888; font-size: 0.8em;">🔐 PRIVATE KEY k</p>
+                                    <p style="margin: 4px 0 0 0; color: #ef4444; font-weight: 600; font-family: monospace;">${k}</p>
+                                    <p style="margin: 4px 0 0 0; color: #888; font-size: 0.75em;">(Keep secret!)</p>
+                                </div>
+                                <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 6px;">
+                                    <p style="margin: 0; color: #888; font-size: 0.8em;">🔓 PUBLIC KEY Q</p>
+                                    <p style="margin: 4px 0 0 0; color: #3b82f6; font-weight: 600; font-family: monospace; font-size: 0.9em;">${escapeHtml(data.Q.display)}</p>
+                                </div>
+                            </div>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; border-left: 3px solid #3b82f6;">
+                                <p style="margin: 0; color: #ccc; font-size: 0.85em; line-height: 1.5;">
+                                    <strong>🎯 The Setup:</strong> Anyone can see Q, but they don't know k. Finding k from Q is the hard problem!
+                                </p>
+                            </div>
+                        </div>
+                    `;
+
+                    // Enable step 3 and update progress
+                    document.getElementById('dlogBruteforceBtn').disabled = false;
+                    updateDlogProgress(3);
+
+                    document.getElementById('dlogStepsContainer').innerHTML = `
+                        <div style="text-align: center; padding: 40px 20px;">
+                            <div style="font-size: 3em; color: #3b82f6; margin-bottom: 15px;">✓</div>
+                            <p style="color: #3b82f6; font-size: 1.1em; margin: 0; font-weight: 600;">Step 2 Complete!</p>
+                            <p style="color: #888; font-size: 0.95em; margin: 8px 0 0 0;">Ready for Step 3: Launch the brute-force attack!</p>
+                        </div>
+                    `;
+
+                    showToast('✓ Public key computed! Now try to brute-force k.', 'success');
+                } else {
+                    showToast(data.error || 'Failed to compute public key', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function bruteForceDiscreteLog() {
+            if (!dlogState.publicKey) {
+                showToast('Please compute the public key first', 'warning');
+                return;
+            }
+
+            const useBsgs = document.getElementById('dlogUseBsgs')?.checked ?? false;
+
+            showLoading('Brute forcing discrete log...', 'Trying all values of k\'');
+
+            try {
+                const response = await fetch('/api/discrete_log_bruteforce', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        a: dlogState.curve.a,
+                        b: dlogState.curve.b,
+                        p: dlogState.curve.p,
+                        G: dlogState.basePoint,
+                        Q: dlogState.publicKey,
+                        max_k: dlogState.order,
+                        use_bsgs: useBsgs
+                    })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.success) {
+                    // Display result summary
+                    const resultDiv = document.getElementById('dlogBruteforceResult');
+                    const foundMatch = data.found && data.k === dlogState.privateKey;
+
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; border-left: 3px solid ${foundMatch ? '#10b981' : '#ef4444'};">
+                            <h4 style="margin: 0 0 8px 0; color: ${foundMatch ? '#10b981' : '#ef4444'};">
+                                ${foundMatch ? '✓ Attack Successful!' : '⚠ Attack Failed'}
+                            </h4>
+                            <p style="margin: 4px 0; color: #ccc;"><strong>Algorithm:</strong> ${data.algorithm.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                            <p style="margin: 4px 0; color: #ccc;"><strong>Found k':</strong> ${data.found ? data.k : 'Not found'}</p>
+                            <p style="margin: 4px 0; color: #ccc;"><strong>Actual k:</strong> ${dlogState.privateKey}</p>
+                            <p style="margin: 4px 0; color: #ccc;"><strong>Steps taken:</strong> ${data.steps_taken.toLocaleString()}</p>
+                            <p style="margin: 4px 0; color: #ccc;"><strong>Time:</strong> ${(data.time_seconds * 1000).toFixed(2)} ms</p>
+
+                            <div style="margin-top: 10px; padding: 10px; background: var(--bg-tertiary); border-radius: 4px;">
+                                <p style="margin: 0; color: #aaa; font-size: 0.9em;">
+                                    <strong>Complexity Analysis:</strong><br>
+                                    • Brute force: ${data.complexity.brute_force.toLocaleString()} operations<br>
+                                    • Baby-step Giant-step: ~${data.complexity.bsgs.toLocaleString()} operations<br>
+                                    • Speedup: ${data.complexity.speedup.toFixed(1)}x faster
+                                </p>
+                            </div>
+
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 4px;">
+                                <p style="margin: 0; color: #10b981; font-size: 0.85em;">
+                                    📚 <strong>Educational Note:</strong> ${escapeHtml(data.explanation)}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+
+                    // Display attempt steps
+                    const stepsContainer = document.getElementById('dlogStepsContainer');
+                    if (data.attempts && data.attempts.length > 0) {
+                        stepsContainer.innerHTML = data.attempts.map(att => {
+                            const isMatch = att.match === true;
+                            const resultStr = att.result ?
+                                (att.result.x !== null ? `(${att.result.x}, ${att.result.y})` : 'O') :
+                                'N/A';
+
+                            return `
+                                <div style="padding: 8px; margin: 4px 0; background: ${isMatch ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-tertiary)'};
+                                    border-radius: 4px; border-left: 3px solid ${isMatch ? '#10b981' : '#555'};">
+                                    <div style="color: ${isMatch ? '#10b981' : '#ccc'}; font-weight: ${isMatch ? 'bold' : 'normal'};">
+                                        ${escapeHtml(att.label)} ${isMatch ? '✓ MATCH!' : ''}
+                                    </div>
+                                    <div style="color: #888; font-size: 0.85em; margin-top: 2px;">
+                                        Result: ${resultStr}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        stepsContainer.innerHTML = '<p style="color: #888;">No detailed steps available.</p>';
+                    }
+
+                    showToast(foundMatch ? 'Found the discrete log!' : 'Brute force complete', foundMatch ? 'success' : 'info');
+                } else {
+                    showToast(data.error || 'Brute force failed', 'error');
+                }
+            } catch (error) {
+                hideLoading();
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // =================== LEGACY DISCRETE LOG FUNCTIONS =================== //
+
         async function demonstrateDiscreteLog() {
             if (!currentCurve || !currentCurve.p) {
                 showToast('Please initialize a curve first', 'warning');
