@@ -15,6 +15,7 @@ def register_encryption_routes(app):
             a = int(data['a'])
             b = int(data['b'])
             p = int(data['p'])
+            custom_private_key = data.get('private_key')
 
             curve = EllipticCurve(a, b, p)
 
@@ -25,14 +26,29 @@ def register_encryption_routes(app):
                 return jsonify({'success': False, 'error': 'Curve has too few points for encryption'}), 400
 
             generator = valid_points[0]
-            private_key = secrets.randbelow(p - 1) + 1
+
+            key_source = 'generated'
+            if custom_private_key not in (None, ''):
+                try:
+                    private_key = int(custom_private_key)
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': 'Private key must be an integer'}), 400
+
+                if private_key <= 0 or private_key >= p:
+                    return jsonify({'success': False, 'error': 'Private key must be between 1 and p-1'}), 400
+
+                key_source = 'custom'
+            else:
+                private_key = secrets.randbelow(p - 1) + 1
+
             public_key = curve.scalar_multiply(private_key, generator)
 
             session['encryption_params'] = {
                 'a': a, 'b': b, 'p': p,
                 'generator': generator,
                 'private_key': private_key,
-                'public_key': public_key
+                'public_key': public_key,
+                'key_source': key_source
             }
 
             user = get_current_user()
@@ -45,6 +61,7 @@ def register_encryption_routes(app):
                 'private_key': private_key,
                 'public_key': {'x': public_key[0], 'y': public_key[1]},
                 'num_points': len(valid_points),
+                'used_custom_key': key_source == 'custom',
                 'message': f'Encryption system initialized on E_{p}({a}, {b})'
             })
         except Exception as e:

@@ -224,3 +224,98 @@ def register_auth_routes(app):
         finally:
             conn.close()
         return jsonify({'success': True, 'message': 'Continuing as guest', 'username': username})
+
+    @app.route('/api/account/change-username', methods=['POST'])
+    def change_username():
+        user = get_current_user()
+        if not user:
+            return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+        if user.get('is_guest'):
+            return jsonify({'success': False, 'message': 'Guest accounts cannot change username'}), 400
+
+        data = request.get_json(silent=True) or {}
+        new_username = (data.get('new_username') or '').strip()
+        password = data.get('password', '')
+
+        if not new_username:
+            return jsonify({'success': False, 'message': 'New username is required'}), 400
+        if not password:
+            return jsonify({'success': False, 'message': 'Password is required'}), 400
+
+        if len(new_username) < 3 or len(new_username) > 50:
+            return jsonify({'success': False, 'message': 'Username must be between 3 and 50 characters'}), 400
+
+        if new_username == user['username']:
+            return jsonify({'success': False, 'message': 'New username must be different from current username'}), 400
+
+        conn = get_db()
+        try:
+            # Verify current password
+            cur = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user['id'],))
+            row = cur.fetchone()
+            if not row or not check_password_hash(row['password_hash'], password):
+                return jsonify({'success': False, 'message': 'Invalid password'}), 401
+
+            # Check if new username is available
+            cur = conn.execute("SELECT id FROM users WHERE username = ?", (new_username,))
+            if cur.fetchone():
+                return jsonify({'success': False, 'message': 'Username already exists'}), 400
+
+            # Update username
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (new_username, user['id']))
+            conn.commit()
+
+            # Update session
+            session['username'] = new_username
+
+            return jsonify({'success': True, 'message': 'Username updated successfully', 'new_username': new_username})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error updating username: {str(e)}'}), 500
+        finally:
+            conn.close()
+
+    @app.route('/api/account/change-password', methods=['POST'])
+    def change_password():
+        user = get_current_user()
+        if not user:
+            return jsonify({'success': False, 'message': 'Not logged in'}), 401
+
+        if user.get('is_guest'):
+            return jsonify({'success': False, 'message': 'Guest accounts cannot change password'}), 400
+
+        data = request.get_json(silent=True) or {}
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+        confirm_password = data.get('confirm_password', '')
+
+        if not current_password or not new_password or not confirm_password:
+            return jsonify({'success': False, 'message': 'All password fields are required'}), 400
+
+        if len(new_password) < 8:
+            return jsonify({'success': False, 'message': 'New password must be at least 8 characters'}), 400
+
+        if new_password != confirm_password:
+            return jsonify({'success': False, 'message': 'Passwords do not match'}), 400
+
+        if current_password == new_password:
+            return jsonify({'success': False, 'message': 'New password must be different from current password'}), 400
+
+        conn = get_db()
+        try:
+            # Verify current password
+            cur = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user['id'],))
+            row = cur.fetchone()
+            if not row or not check_password_hash(row['password_hash'], current_password):
+                return jsonify({'success': False, 'message': 'Current password is incorrect'}), 401
+
+            # Update password
+            new_pw_hash = generate_password_hash(new_password)
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_pw_hash, user['id']))
+            conn.commit()
+
+            return jsonify({'success': True, 'message': 'Password updated successfully'})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error updating password: {str(e)}'}), 500
+        finally:
+            conn.close()

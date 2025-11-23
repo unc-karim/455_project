@@ -23,6 +23,11 @@ dist/
 htmlcov/
 .pytest_cache/
 .cache/
+test_api_integration.py
+test_database_direct.py
+test_functionality.py
+TEST_REPORT.md
+TESTING_GUIDE.md
 
 # IDE/editor
 .vscode/

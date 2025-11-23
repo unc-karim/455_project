@@ -26,10 +26,19 @@
     <!-- Sliding History Panel -->
     <div id="historyPanel" class="history-panel">
         <div class="history-panel-header">
-            <h2><i class="fa-solid fa-gear panel-title-icon" aria-hidden="true"></i> Menu</h2>
+            <h2><i class="fa-solid fa-bars panel-title-icon" aria-hidden="true"></i> Menu</h2>
             <button class="history-close-btn" onclick="closeHistoryPanel()" aria-label="Close menu panel">×</button>
         </div>
         <div class="history-panel-content">
+
+            <!-- Menu Search Bar -->
+            <div class="menu-search-container">
+                <i class="fa-solid fa-search menu-search-icon"></i>
+                <input type="text" id="menuSearchInput" class="menu-search-input" placeholder="Search menu..." oninput="filterMenuItems()">
+                <button class="menu-search-clear" onclick="clearMenuSearch()" style="display: none;" id="menuSearchClear">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
 
             <!-- User Profile Section -->
             <div class="menu-section">
@@ -41,111 +50,173 @@
                             <div class="user-status" id="menuUserStatus">Not signed in</div>
                         </div>
                     </div>
-                    <button id="menuAuthBtn" class="btn-auth" onclick="openLoginModal()">Sign In</button>
+                    <div class="user-actions">
+                        <button id="menuSettingsBtn" class="btn-settings" onclick="toggleAccountSettings()" style="display: none;" title="Account settings" aria-label="Account settings">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                        <button id="menuLogout" class="btn-settings" onclick="doLogout()" style="display: none;" title="Logout" aria-label="Logout">
+                            <i class="fa-solid fa-sign-out-alt"></i>
+                        </button>
+                        <button id="menuAuthBtn" class="btn-auth" onclick="openLoginModal()">Sign In</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Settings Section (Collapsible) -->
+            <div class="menu-section" id="accountSettingsSection" style="display: none;">
+                <div class="menu-section-header">
+                    <h3 class="menu-section-title">
+                        <i class="fa-solid fa-lock menu-title-icon"></i> Account Settings
+                    </h3>
+                    <p class="menu-section-desc">Manage your account</p>
+                </div>
+                <div class="menu-grid">
+                    <button class="menu-card" onclick="openChangeUsernameModal()" title="Change username" data-menu-text="username change account profile name">
+                        <span class="menu-card-icon"><i class="fa-solid fa-user-pen" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Change Username</span>
+                        <span class="menu-card-hint">Update profile name</span>
+                    </button>
+                    <button class="menu-card" onclick="openChangePasswordModal()" title="Change password" data-menu-text="password change security account">
+                        <span class="menu-card-icon"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
+                        <span class="menu-card-label">Change Password</span>
+                        <span class="menu-card-hint">Update security</span>
+                    </button>
                 </div>
             </div>
 
             <!-- Quick Actions Section -->
-            <div class="menu-section">
-                <h3 class="menu-section-title">Quick Actions</h3>
-                    <div class="menu-grid">
-                        <button class="menu-card" onclick="toggleTheme()" title="Toggle light/dark theme">
+            <div class="menu-section" data-menu-category="quick">
+                <div class="menu-section-header" onclick="toggleMenuSection(this)" onkeydown="toggleMenuSection(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="menu-section-title-wrapper">
+                        <h3 class="menu-section-title">
+                            <i class="fa-solid fa-bolt menu-title-icon"></i> Quick Actions
+                        </h3>
+                        <p class="menu-section-desc">Common tasks & settings</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-down menu-section-chevron"></i>
+                </div>
+                    <div class="menu-grid menu-section-content" style="display: none;">
+                        <button class="menu-card" onclick="toggleTheme()" title="Toggle light/dark theme" data-menu-text="theme dark mode light">
                             <span class="menu-card-icon theme-icon"><i class="fa-solid fa-moon" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Theme</span>
-                        <span class="menu-card-hint">Toggle mode</span>
+                        <span class="menu-card-hint">Light / Dark mode</span>
                     </button>
-                        <button class="menu-card" onclick="showKeyboardHelp()" title="View keyboard shortcuts">
+                        <button class="menu-card" onclick="showKeyboardHelp()" title="View keyboard shortcuts" data-menu-text="shortcuts keyboard help hotkeys">
                             <span class="menu-card-icon"><i class="fa-solid fa-keyboard" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Shortcuts</span>
-                        <span class="menu-card-hint">View all</span>
+                        <span class="menu-card-hint">Keyboard hotkeys</span>
                     </button>
-                        <button class="menu-card" onclick="showFormulaReference()" title="Mathematical formulas">
+                        <button class="menu-card" onclick="showFormulaReference()" title="Mathematical formulas" data-menu-text="formulas math equations reference">
                             <span class="menu-card-icon"><i class="fa-solid fa-ruler-combined" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Formulas</span>
-                        <span class="menu-card-hint">Reference</span>
+                        <span class="menu-card-hint">Math reference</span>
                     </button>
-                        <button class="menu-card" onclick="exportUnifiedHistory()" title="Export history">
+                        <button class="menu-card" onclick="exportUnifiedHistory()" title="Export history" data-menu-text="export save download history data">
                             <span class="menu-card-icon"><i class="fa-solid fa-file-export" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Export</span>
-                        <span class="menu-card-hint">Save data</span>
+                        <span class="menu-card-hint">Download data</span>
                     </button>
                 </div>
             </div>
 
             <!-- Learning & Tutorials Section -->
-            <div class="menu-section">
-                <h3 class="menu-section-title">Learning & Tutorials</h3>
-                <div class="menu-grid">
-                    <button class="menu-card" onclick="startTutorial('initialization')" title="Learn curve initialization">
+            <div class="menu-section" data-menu-category="learning">
+                <div class="menu-section-header" onclick="toggleMenuSection(this)" onkeydown="toggleMenuSection(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="menu-section-title-wrapper">
+                        <h3 class="menu-section-title">
+                            <i class="fa-solid fa-graduation-cap menu-title-icon"></i> Learning & Tutorials
+                        </h3>
+                        <p class="menu-section-desc">Master ECC concepts</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-down menu-section-chevron"></i>
+                </div>
+                <div class="menu-grid menu-section-content" style="display: none;">
+                    <button class="menu-card" onclick="startTutorial('initialization')" title="Learn curve initialization" data-menu-text="tutorial initialization curve setup learn">
                         <span class="menu-card-icon"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Init Tutorial</span>
-                        <span class="menu-card-hint">Step-by-step</span>
+                        <span class="menu-card-hint">Curve setup guide</span>
                     </button>
-                    <button class="menu-card" onclick="startTutorial('point_addition')" title="Learn point addition">
+                    <button class="menu-card" onclick="startTutorial('point_addition')" title="Learn point addition" data-menu-text="tutorial addition points learn arithmetic">
                         <span class="menu-card-icon"><i class="fa-solid fa-book-open" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Addition Tutorial</span>
-                        <span class="menu-card-hint">Guided walkthrough</span>
+                        <span class="menu-card-hint">Point arithmetic</span>
                     </button>
-                    <button class="menu-card" onclick="startTutorial('scalar_multiplication')" title="Learn scalar multiplication">
+                    <button class="menu-card" onclick="startTutorial('scalar_multiplication')" title="Learn scalar multiplication" data-menu-text="tutorial multiplication scalar multiplication learn">
                         <span class="menu-card-icon"><i class="fa-solid fa-chalkboard-teacher" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Multiply Tutorial</span>
-                        <span class="menu-card-hint">Interactive guide</span>
+                        <span class="menu-card-hint">Scalar multiplication</span>
                     </button>
-                    <button class="menu-card" onclick="showPresetsLibrary()" title="Manage curve presets">
+                    <button class="menu-card" onclick="showPresetsLibrary()" title="Manage curve presets" data-menu-text="presets library save load curves templates">
                         <span class="menu-card-icon"><i class="fa-solid fa-bookmark" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Presets Library</span>
-                        <span class="menu-card-hint">Save & load</span>
+                        <span class="menu-card-hint">Save custom curves</span>
                     </button>
                 </div>
             </div>
 
             <!-- Advanced Features Section -->
-            <div class="menu-section">
-                <h3 class="menu-section-title">Advanced Features</h3>
-                <div class="menu-grid">
-                    <button class="menu-card" onclick="classifyPoints()" title="Classify curve points">
+            <div class="menu-section" data-menu-category="advanced">
+                <div class="menu-section-header" onclick="toggleMenuSection(this)" onkeydown="toggleMenuSection(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="menu-section-title-wrapper">
+                        <h3 class="menu-section-title">
+                            <i class="fa-solid fa-flask menu-title-icon"></i> Advanced Features
+                        </h3>
+                        <p class="menu-section-desc">Cryptographic demonstrations</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-down menu-section-chevron"></i>
+                </div>
+                <div class="menu-grid menu-section-content" style="display: none;">
+                    <button class="menu-card" onclick="classifyPoints()" title="Classify curve points" data-menu-text="classify point types curve analysis">
                         <span class="menu-card-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Classify</span>
-                        <span class="menu-card-hint">Point types</span>
+                        <span class="menu-card-hint">Analyze points</span>
                     </button>
-                    <button class="menu-card" onclick="demonstrateDiffieHellman()" title="Diffie-Hellman key exchange">
+                    <button class="menu-card" onclick="demonstrateDiffieHellman()" title="Diffie-Hellman key exchange" data-menu-text="diffie hellman key exchange demo protocol">
                         <span class="menu-card-icon"><i class="fa-solid fa-key" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Diffie-Hellman</span>
-                        <span class="menu-card-hint">Key exchange</span>
+                        <span class="menu-card-hint">Key exchange demo</span>
                     </button>
-                    <button class="menu-card" onclick="demonstrateDiscreteLog()" title="Discrete logarithm problem">
+                    <button class="menu-card" onclick="demonstrateDiscreteLog()" title="Discrete logarithm problem" data-menu-text="discrete log problem attack brute force">
                         <span class="menu-card-icon"><i class="fa-solid fa-calculator" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Discrete Log</span>
-                        <span class="menu-card-hint">Interactive demo</span>
+                        <span class="menu-card-hint">Attack simulation</span>
                     </button>
-                    <button class="menu-card" onclick="showWhyItWorksModal()" title="Learn how ECC works">
+                    <button class="menu-card" onclick="showWhyItWorksModal()" title="Learn how ECC works" data-menu-text="why ecc elliptic curve security strength">
                         <span class="menu-card-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Why It Works</span>
-                        <span class="menu-card-hint">Learn ECC</span>
+                        <span class="menu-card-hint">Security explained</span>
                     </button>
                 </div>
             </div>
 
             <!-- Utility Tools Section -->
-            <div class="menu-section">
-                <h3 class="menu-section-title">Utility Tools</h3>
-                <div class="menu-grid">
-                    <button class="menu-card" onclick="generateTestVector()" title="Generate test vector">
+            <div class="menu-section" data-menu-category="utility">
+                <div class="menu-section-header" onclick="toggleMenuSection(this)" onkeydown="toggleMenuSection(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="menu-section-title-wrapper">
+                        <h3 class="menu-section-title">
+                            <i class="fa-solid fa-wrench menu-title-icon"></i> Utility Tools
+                        </h3>
+                        <p class="menu-section-desc">Export & analysis tools</p>
+                    </div>
+                    <i class="fa-solid fa-chevron-down menu-section-chevron"></i>
+                </div>
+                <div class="menu-grid menu-section-content" style="display: none;">
+                    <button class="menu-card" onclick="generateTestVector()" title="Generate test vector" data-menu-text="test vector generate example sample">
                         <span class="menu-card-icon"><i class="fa-solid fa-vial" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Test Vector</span>
-                        <span class="menu-card-hint">Generate</span>
+                        <span class="menu-card-hint">Sample data</span>
                     </button>
-                    <button class="menu-card" onclick="copyCurveParameters()" title="Copy curve parameters">
+                    <button class="menu-card" onclick="copyCurveParameters()" title="Copy curve parameters" data-menu-text="copy parameters clipboard curve data">
                         <span class="menu-card-icon"><i class="fa-solid fa-copy" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Copy Params</span>
-                        <span class="menu-card-hint">To clipboard</span>
+                        <span class="menu-card-hint">Clipboard</span>
                     </button>
-                    <button class="menu-card" onclick="downloadPointList()" title="Download point list">
+                    <button class="menu-card" onclick="downloadPointList()" title="Download point list" data-menu-text="download export points csv json file">
                         <span class="menu-card-icon"><i class="fa-solid fa-download" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Download</span>
                         <span class="menu-card-hint">Point list</span>
                     </button>
-                    <button class="menu-card" onclick="toggleCurveOverlay()" title="Compare multiple curves">
+                    <button class="menu-card" onclick="toggleCurveOverlay()" title="Compare multiple curves" data-menu-text="overlay compare multiple curves analysis">
                         <span class="menu-card-icon"><i class="fa-solid fa-layer-plus" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Overlay</span>
                         <span class="menu-card-hint">Compare curves</span>
@@ -155,18 +226,21 @@
 
             <!-- History Section -->
             <div class="menu-section">
-                <div class="menu-section-title-row">
-                        <h3 class="menu-section-title"><i class="fa-solid fa-scroll menu-title-icon" aria-hidden="true"></i> History</h3>
+                <div class="menu-section-title-row" onclick="toggleMenuSection(this)" onkeydown="toggleMenuSection(this)" role="button" tabindex="0" aria-expanded="false">
+                        <div class="menu-section-title-wrapper">
+                            <h3 class="menu-section-title"><i class="fa-solid fa-scroll menu-title-icon" aria-hidden="true"></i> History</h3>
+                        </div>
                         <div class="menu-section-actions">
-                            <button class="icon-btn" onclick="refreshUnifiedHistory()" title="Refresh history">
+                            <button class="icon-btn" onclick="refreshUnifiedHistory(event)" title="Refresh history">
                                 <span aria-hidden="true"><i class="fa-solid fa-arrows-rotate"></i></span>
                             </button>
-                            <button class="icon-btn" onclick="clearUnifiedHistory()" title="Clear history">
+                            <button class="icon-btn" onclick="clearUnifiedHistory(event)" title="Clear history">
                                 <span aria-hidden="true"><i class="fa-solid fa-trash-can"></i></span>
                             </button>
+                            <i class="fa-solid fa-chevron-down menu-section-chevron"></i>
                         </div>
                     </div>
-                <div id="unifiedHistoryList" class="history-list"></div>
+                <div id="unifiedHistoryList" class="history-list menu-section-content" style="display: none;"></div>
             </div>
 
         </div>
@@ -318,6 +392,89 @@
                         These curves form a compact, high-security group where the discrete logarithm problem remains hard. This interface makes every layer—from the algebra to encrypted messages and tutorials—visible so you can both experiment and explain ECC confidently.
                     </p>
                 </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Change Username Modal -->
+            <div id="changeUsernameModal" class="account-modal">
+                <div class="account-modal-overlay" onclick="closeChangeUsernameModal()"></div>
+                <div class="account-modal-content">
+                    <button class="account-modal-close" onclick="closeChangeUsernameModal()" aria-label="Close">×</button>
+                    <div class="account-modal-body">
+                        <div class="account-modal-icon">
+                            <i class="fa-solid fa-user-pen"></i>
+                        </div>
+                        <h2>Change Username</h2>
+                        <p class="account-modal-subtitle">Update your profile name</p>
+
+                        <div class="account-form-group">
+                            <label for="currentUsername">Current Username</label>
+                            <div class="username-display" id="currentUsernameDisplay">username</div>
+                        </div>
+
+                        <div class="account-form-group">
+                            <label for="newUsername">New Username</label>
+                            <input type="text" id="newUsername" placeholder="Enter new username" maxlength="50">
+                            <small class="form-hint">Username must be 3-50 characters</small>
+                        </div>
+
+                        <div class="account-form-group">
+                            <label for="usernamePassword">Password (for confirmation)</label>
+                            <input type="password" id="usernamePassword" placeholder="Enter your password">
+                            <small class="form-hint">Confirm with your password</small>
+                        </div>
+
+                        <div id="usernameError" class="account-error" style="display: none;"></div>
+
+                        <div class="account-modal-actions">
+                            <button class="btn-secondary" onclick="closeChangeUsernameModal()">Cancel</button>
+                            <button class="btn-primary" onclick="submitChangeUsername()">Update Username</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Change Password Modal -->
+            <div id="changePasswordModal" class="account-modal">
+                <div class="account-modal-overlay" onclick="closeChangePasswordModal()"></div>
+                <div class="account-modal-content">
+                    <button class="account-modal-close" onclick="closeChangePasswordModal()" aria-label="Close">×</button>
+                    <div class="account-modal-body">
+                        <div class="account-modal-icon">
+                            <i class="fa-solid fa-key"></i>
+                        </div>
+                        <h2>Change Password</h2>
+                        <p class="account-modal-subtitle">Update your account security</p>
+
+                        <div class="account-form-group">
+                            <label for="currentPassword">Current Password</label>
+                            <input type="password" id="currentPassword" placeholder="Enter current password">
+                        </div>
+
+                        <div class="account-form-group">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" placeholder="Enter new password">
+                            <small class="form-hint">Password must be at least 8 characters</small>
+                        </div>
+
+                        <div class="account-form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" placeholder="Confirm new password">
+                            <small class="form-hint">Passwords must match</small>
+                        </div>
+
+                        <div class="password-strength" id="passwordStrength">
+                            <div class="strength-bar"></div>
+                            <span class="strength-text">Password strength: <span id="strengthLevel">—</span></span>
+                        </div>
+
+                        <div id="passwordError" class="account-error" style="display: none;"></div>
+
+                        <div class="account-modal-actions">
+                            <button class="btn-secondary" onclick="closeChangePasswordModal()">Cancel</button>
+                            <button class="btn-primary" onclick="submitChangePassword()">Update Password</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -594,20 +751,44 @@
             <div id="demonstrationsTab" class="tab-pane">
                 <div id="dhDemoPane" class="subtab-pane active">
                     <div class="panel">
-                        <h2>Diffie-Hellman Key Exchange</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Interactive demonstration of ECDH protocol</p>
+                        <div class="dh-header">
+                            <div class="dh-icon-wrapper">
+                                <i class="fa-solid fa-key"></i>
+                            </div>
+                            <div>
+                                <h2 style="margin: 0 0 8px 0;">Diffie-Hellman Key Exchange</h2>
+                                <p style="margin: 0; color: var(--text-secondary); line-height: 1.5;">
+                                    Watch how Alice and Bob establish a shared secret over a public channel using elliptic curve cryptography
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="dh-info-box">
+                            <i class="fa-solid fa-lightbulb"></i>
+                            <div>
+                                <strong>How it works:</strong> Both parties compute a shared secret without ever transmitting it.
+                                An eavesdropper can see the public keys but cannot determine the shared secret.
+                            </div>
+                        </div>
 
                         <div class="form-group">
-                            <label for="dhCurvePreset">Preset Curves</label>
+                            <label for="dhCurvePreset">
+                                <i class="fa-solid fa-bookmark" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                Choose a Preset Curve
+                            </label>
                             <select id="dhCurvePreset" onchange="loadDHPreset(this.value)">
-                                <option value="e23">E₂₃(1,1) - Tiny example</option>
+                                <option value="e23">E₂₃(1,1) - Tiny example (Fast demo)</option>
                                 <option value="e31">E₃₁(2,3) - Small example</option>
-                                <option value="e47" selected>E₄₇(5,7) - Medium example</option>
-                                <option value="e97">E₉₇(2,3) - Default</option>
+                                <option value="e47" selected>E₄₇(5,7) - Medium example (Recommended)</option>
+                                <option value="e97">E₉₇(2,3) - Default (More points)</option>
                             </select>
                         </div>
 
                         <div class="form-group">
+                            <label style="font-weight: 500;">
+                                <i class="fa-solid fa-sliders" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                Curve Parameters
+                            </label>
                             <div class="inline-inputs">
                                 <div>
                                     <label for="dhParamA">a</label>
@@ -622,29 +803,62 @@
                                     <input type="number" id="dhParamP" value="47" placeholder="p">
                                 </div>
                             </div>
+                            <small style="display: block; margin-top: 8px; color: var(--text-muted);">
+                                Curve equation: y² ≡ x³ + ax + b (mod p)
+                            </small>
                         </div>
 
-                        <button onclick="runDiffieHellmanDemo()">Start Diffie-Hellman Demo</button>
+                        <button onclick="runDiffieHellmanDemo()" class="dh-start-btn">
+                            <i class="fa-solid fa-play"></i>
+                            Start Key Exchange Demo
+                        </button>
 
                         <div id="dhDemoResult"></div>
                     </div>
                     <div class="panel">
-                        <h2>Visualization</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Step-by-step walkthrough</p>
-                        <div id="dhStepsContainer" style="max-height: 350px; overflow-y: auto;"></div>
-                        <div class="dh-canvas-wrapper" style="margin-top: 20px;">
-                            <canvas id="dhCanvas" width="620" height="420" style="width: 100%; height: auto; border-radius: 12px; background: var(--bg-tertiary); display: none;"></canvas>
-                            <p id="dhCanvasHint" style="margin: 10px 0 0; color: var(--text-muted); font-size: 0.85em; text-align: center;">
-                                The canvas illustrates Alice, Bob, and the shared secret. Run the demo to reveal each step.
+                        <div class="dh-viz-header">
+                            <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-chart-line"></i>
+                                Interactive Visualization
+                            </h2>
+                            <p style="margin: 8px 0 0; color: var(--text-secondary);">
+                                Follow along as the key exchange happens step by step
                             </p>
                         </div>
 
-                        <div id="dhAnimControls" class="anim-controls" style="display:none; margin-top: 20px;">
-                            <button id="dhPrevBtn" onclick="prevDHStep()">Previous</button>
-                            <button id="dhPlayBtn" onclick="playDHAnimation()">Play</button>
-                            <input id="dhStepSlider" type="range" min="0" max="0" value="0" oninput="setDHStep(this.value)">
-                            <button id="dhNextBtn" onclick="nextDHStep()">Next</button>
-                            <span class="step-label" id="dhStepLabel">0/0</span>
+                        <div class="dh-canvas-wrapper">
+                            <canvas id="dhCanvas" width="620" height="420"></canvas>
+                            <div id="dhCanvasHint" class="dh-canvas-hint">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>Click "Start Key Exchange Demo" above to begin the visualization</span>
+                            </div>
+                        </div>
+
+                        <div id="dhAnimControls" class="dh-anim-controls">
+                            <button id="dhPrevBtn" onclick="prevDHStep()" class="dh-control-btn" title="Previous step">
+                                <i class="fa-solid fa-backward-step"></i>
+                                <span>Previous</span>
+                            </button>
+                            <button id="dhPlayBtn" onclick="playDHAnimation()" class="dh-control-btn dh-play-btn" title="Play animation">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Play</span>
+                            </button>
+                            <div class="dh-slider-wrapper">
+                                <input id="dhStepSlider" type="range" min="0" max="0" value="0" oninput="setDHStep(this.value)">
+                                <span class="dh-step-label" id="dhStepLabel">0/0</span>
+                            </div>
+                            <button id="dhNextBtn" onclick="nextDHStep()" class="dh-control-btn" title="Next step">
+                                <span>Next</span>
+                                <i class="fa-solid fa-forward-step"></i>
+                            </button>
+                        </div>
+
+                        <div class="dh-steps-wrapper">
+                            <h3 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 1.05em;">
+                                <i class="fa-solid fa-list-ol" style="margin-right: 8px; color: var(--accent-primary);"></i>
+                                Step-by-Step Breakdown
+                            </h3>
+                            <div id="dhStepsContainer" class="dh-steps-scroll"></div>
                         </div>
                     </div>
                 </div>
@@ -801,19 +1015,30 @@
                     </div>
 
                     <div class="panel">
-                        <div style="border-bottom: 2px solid var(--bg-tertiary); padding-bottom: 12px; margin-bottom: 15px;">
-                            <h2 style="margin: 0; display: flex; align-items: center;">
-                                <i class="fa-solid fa-list-check" style="margin-right: 10px; color: #3b82f6;"></i>
-                                Attack Progress
-                            </h2>
-                            <p style="margin: 8px 0 0 0; color: #888;">Watch the algorithm test each value of k' in real-time</p>
+                        <div class="dlog-attack-header">
+                            <div class="dlog-attack-icon">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <div>
+                                <h2 style="margin: 0 0 8px 0; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fa-solid fa-list-check" style="color: #ef4444;"></i>
+                                    Attack Progress
+                                </h2>
+                                <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
+                                    Watch the algorithm test each value of k' in real-time as it tries to crack the key
+                                </p>
+                            </div>
                         </div>
 
-                        <div id="dlogStepsContainer" style="max-height: 500px; overflow-y: auto; background: var(--bg-secondary); padding: 15px; border-radius: 8px; border: 1px solid var(--bg-tertiary);">
-                            <div style="text-align: center; padding: 40px 20px;">
-                                <div style="font-size: 3em; color: #555; margin-bottom: 15px;">🔍</div>
-                                <p style="color: #888; font-size: 1.05em; margin: 0;">No attack in progress</p>
-                                <p style="color: #666; font-size: 0.9em; margin: 8px 0 0 0;">Complete Steps 1 & 2, then launch the brute-force attack to see attempts here.</p>
+                        <div id="dlogStepsContainer" class="dlog-steps-container">
+                            <div class="dlog-empty-state">
+                                <div class="dlog-empty-icon">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                </div>
+                                <div class="dlog-empty-text">
+                                    <p class="dlog-empty-title">No Attack in Progress</p>
+                                    <p class="dlog-empty-subtitle">Complete Steps 1 & 2, then launch the brute-force attack to see attempts here.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -852,6 +1077,11 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label for="encryptionPrivateKey">Custom Private Key (optional)</label>
+                            <input type="number" id="encryptionPrivateKey" placeholder="Leave blank to auto-generate" min="1">
+                            <small style="color:#aaa;">Use a value between 1 and p-1. Leave empty to generate a random key.</small>
+                        </div>
                         <button onclick="initEncryptionCurve()">Initialize Encryption System</button>
                         <div id="encryptionSystemInfo"></div>
 
@@ -870,18 +1100,109 @@
                 <div id="encryptPane" class="subtab-pane">
                     <div class="panel">
                         <button onclick="selectEncryptionPane('encryptInitPane')" style="margin-bottom: 15px;">← Back to Setup</button>
-                        <h2>Encrypt Message</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Encrypt text using elliptic curve cryptography</p>
-                        <div class="form-group">
-                            <label for="plaintextInput">Message to Encrypt</label>
-                            <textarea id="plaintextInput" rows="4" placeholder="Enter your message here..."></textarea>
+
+                        <div class="encrypt-header">
+                            <div class="encrypt-icon-wrapper">
+                                <i class="fa-solid fa-lock"></i>
+                            </div>
+                            <div>
+                                <h2 style="margin: 0 0 8px 0;">Encrypt Message</h2>
+                                <p style="margin: 0; color: var(--text-secondary); line-height: 1.5;">
+                                    Secure your messages using elliptic curve cryptography
+                                </p>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="encryptionFileInput">Or upload a file</label>
-                            <input type="file" id="encryptionFileInput">
-                            <small style="color:#aaa;">File bytes will be encrypted instead of the text above.</small>
+
+                        <div class="encrypt-info-box">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <div>
+                                <strong>Choose your input method:</strong> Type a message, paste text, or upload any file type to encrypt.
+                            </div>
                         </div>
-                        <button onclick="encryptMessage()">Encrypt</button>
+
+                        <!-- Input Method Tabs -->
+                        <div class="input-method-tabs">
+                            <button class="input-tab active" onclick="switchEncryptInputMethod('text')" id="encryptTextTab">
+                                <i class="fa-solid fa-keyboard"></i>
+                                <span>Text Message</span>
+                            </button>
+                            <button class="input-tab" onclick="switchEncryptInputMethod('file')" id="encryptFileTab">
+                                <i class="fa-solid fa-file-arrow-up"></i>
+                                <span>Upload File</span>
+                            </button>
+                        </div>
+
+                        <!-- Text Input Section -->
+                        <div id="encryptTextInput" class="input-section active">
+                            <div class="form-group">
+                                <label for="plaintextInput">
+                                    <i class="fa-solid fa-message" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                    Your Message
+                                </label>
+                                <textarea id="plaintextInput" rows="5" placeholder="Type or paste your secret message here...&#10;&#10;Examples:&#10;• Personal notes&#10;• Passwords&#10;• API keys&#10;• Any confidential text" oninput="updateCharCount()"></textarea>
+                                <div class="char-count-container">
+                                    <span id="charCount" class="char-count">0 characters</span>
+                                    <span class="char-hint">Will be encrypted with ECC</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Input Section -->
+                        <div id="encryptFileInput" class="input-section">
+                            <div class="form-group">
+                                <label>
+                                    <i class="fa-solid fa-cloud-arrow-up" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                    Upload File
+                                </label>
+                                <div class="file-upload-area" onclick="document.getElementById('encryptionFileInput').click()">
+                                    <i class="fa-solid fa-file-arrow-up file-upload-icon"></i>
+                                    <p class="file-upload-text">Click to browse or drag & drop</p>
+                                    <p class="file-upload-hint">Any file type • Max size recommended: 10MB</p>
+                                    <input type="file" id="encryptionFileInput" style="display: none;" onchange="updateFileInfo(this, 'encryptFileInfo')">
+                                </div>
+                                <div id="encryptFileInfo" class="file-info"></div>
+                            </div>
+                        </div>
+
+                        <!-- Output Format Selection -->
+                        <div class="form-group">
+                            <label for="encryptionOutputFormat">
+                                <i class="fa-solid fa-gear" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                Output Format
+                            </label>
+                            <div class="format-selector">
+                                <div class="format-option" onclick="selectFormat('json')">
+                                    <input type="radio" name="outputFormat" id="formatJson" value="json" checked>
+                                    <label for="formatJson">
+                                        <i class="fa-solid fa-code"></i>
+                                        <div>
+                                            <strong>JSON Format</strong>
+                                            <span>Full details with structure</span>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="format-option" onclick="selectFormat('ciphertext')">
+                                    <input type="radio" name="outputFormat" id="formatCiphertext" value="ciphertext">
+                                    <label for="formatCiphertext">
+                                        <i class="fa-solid fa-compress"></i>
+                                        <div>
+                                            <strong>Compact Ciphertext</strong>
+                                            <span>Base64 encoded, easy to share</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <select id="encryptionOutputFormat" style="display: none;">
+                                <option value="json">JSON (Full Details)</option>
+                                <option value="ciphertext">Ciphertext Only (Compact)</option>
+                            </select>
+                        </div>
+
+                        <button onclick="encryptMessage()" class="encrypt-btn">
+                            <i class="fa-solid fa-lock"></i>
+                            Encrypt Now
+                        </button>
+
                         <div id="encryptionResult"></div>
                         <div id="encryptionStepsDisplay" class="steps-display"></div>
                     </div>
@@ -900,18 +1221,89 @@
                 <div id="decryptPane" class="subtab-pane">
                     <div class="panel">
                         <button onclick="selectEncryptionPane('encryptInitPane')" style="margin-bottom: 15px;">← Back to Setup</button>
-                        <h2>Decrypt Message</h2>
-                        <p style="margin-bottom: 15px; color: #888;">Decrypt ciphertext using your private key</p>
-                        <div class="form-group">
-                            <label for="ciphertextInput">Ciphertext (JSON format)</label>
-                            <textarea id="ciphertextInput" rows="6" placeholder='{"R": {"x": ..., "y": ...}, "encrypted": [...], "iv": ...}'></textarea>
+
+                        <div class="decrypt-header">
+                            <div class="decrypt-icon-wrapper">
+                                <i class="fa-solid fa-lock-open"></i>
+                            </div>
+                            <div>
+                                <h2 style="margin: 0 0 8px 0;">Decrypt Message</h2>
+                                <p style="margin: 0; color: var(--text-secondary); line-height: 1.5;">
+                                    Reveal encrypted messages using your private key
+                                </p>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="decryptionFileInput">Or upload ciphertext file</label>
-                            <input type="file" id="decryptionFileInput" accept=".json,application/json">
-                            <small style="color:#aaa;">Only JSON ciphertext files are allowed.</small>
+
+                        <div class="decrypt-info-box">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <div>
+                                <strong>Auto-format detection:</strong> Paste JSON or compact ciphertext. The system will automatically detect and decode your format.
+                            </div>
                         </div>
-                        <button onclick="decryptMessage()">Decrypt</button>
+
+                        <!-- Input Method Tabs -->
+                        <div class="input-method-tabs">
+                            <button class="input-tab active" onclick="switchDecryptInputMethod('paste')" id="decryptPasteTab">
+                                <i class="fa-solid fa-paste"></i>
+                                <span>Paste Ciphertext</span>
+                            </button>
+                            <button class="input-tab" onclick="switchDecryptInputMethod('file')" id="decryptFileTab">
+                                <i class="fa-solid fa-file-import"></i>
+                                <span>Upload File</span>
+                            </button>
+                        </div>
+
+                        <!-- Paste Input Section -->
+                        <div id="decryptPasteInput" class="input-section active">
+                            <div class="form-group">
+                                <label for="ciphertextInput">
+                                    <i class="fa-solid fa-file-code" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                    Ciphertext or JSON
+                                </label>
+                                <textarea id="ciphertextInput" rows="2" placeholder='Paste JSON or Base64 ciphertext here (auto-detects format)...' oninput="updateCiphertextInfo()"></textarea>
+                                <div class="ciphertext-info-bar">
+                                    <span id="ciphertextFormat" class="format-badge">
+                                        <i class="fa-solid fa-circle-question"></i>
+                                        Waiting for input
+                                    </span>
+                                    <span id="ciphertextLength" class="length-badge">0 chars</span>
+                                </div>
+                            </div>
+
+                            <div class="quick-actions">
+                                <button type="button" onclick="clearCiphertext()" class="action-btn secondary">
+                                    <i class="fa-solid fa-xmark"></i>
+                                    Clear
+                                </button>
+                                <button type="button" onclick="pasteSampleCiphertext()" class="action-btn">
+                                    <i class="fa-solid fa-flask"></i>
+                                    Try Sample
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- File Input Section -->
+                        <div id="decryptFileInput" class="input-section">
+                            <div class="form-group">
+                                <label>
+                                    <i class="fa-solid fa-file-import" style="margin-right: 6px; color: var(--accent-primary);"></i>
+                                    Upload Encrypted File
+                                </label>
+                                <div class="file-upload-area" onclick="document.getElementById('decryptionFileInput').click()">
+                                    <i class="fa-solid fa-file-import file-upload-icon"></i>
+                                    <p class="file-upload-text">Click to browse or drag & drop</p>
+                                    <p class="file-upload-hint">Supports JSON and ciphertext files</p>
+                                    <input type="file" id="decryptionFileInput" style="display: none;" onchange="updateFileInfo(this, 'decryptFileInfo')">
+                                </div>
+                                <div id="decryptFileInfo" class="file-info"></div>
+                            </div>
+                        </div>
+
+                        <button onclick="decryptMessage()" class="decrypt-btn">
+                            <i class="fa-solid fa-unlock"></i>
+                            Decrypt Now
+                        </button>
+
                         <div id="decryptionResult"></div>
                         <div id="decryptionStepsDisplay" class="steps-display"></div>
                     </div>

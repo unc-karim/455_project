@@ -406,7 +406,18 @@
 
         function openAboutModal() {
             const modal = document.getElementById('aboutModal');
+            const modalContent = modal.querySelector('.about-modal-content');
+
+            // Reset scroll position to top
+            if (modalContent) {
+                modalContent.scrollTop = 0;
+            }
+
+            // Force a reflow to ensure smooth rendering
+            modal.classList.remove('active');
+            modal.offsetHeight; // Trigger reflow
             modal.classList.add('active');
+
             document.body.style.overflow = 'hidden';
         }
 
@@ -423,8 +434,261 @@
                 if (aboutModal && aboutModal.classList.contains('active')) {
                     closeAboutModal();
                 }
+                const changeUsernameModal = document.getElementById('changeUsernameModal');
+                if (changeUsernameModal && changeUsernameModal.classList.contains('active')) {
+                    closeChangeUsernameModal();
+                }
+                const changePasswordModal = document.getElementById('changePasswordModal');
+                if (changePasswordModal && changePasswordModal.classList.contains('active')) {
+                    closeChangePasswordModal();
+                }
             }
         });
+
+        // =================== ACCOUNT SETTINGS FUNCTIONS =================== //
+
+        // Toggle account settings section visibility based on login status
+        function updateAccountSettingsVisibility(isLoggedIn) {
+            const settingsBtn = document.getElementById('menuSettingsBtn');
+            const authBtn = document.getElementById('menuAuthBtn');
+            if (settingsBtn) {
+                settingsBtn.style.display = isLoggedIn ? 'block' : 'none';
+            }
+            if (authBtn) {
+                authBtn.style.display = isLoggedIn ? 'none' : 'block';
+            }
+            // Hide settings section when user logs out
+            const accountSection = document.getElementById('accountSettingsSection');
+            if (accountSection && !isLoggedIn) {
+                accountSection.style.display = 'none';
+            }
+        }
+
+        function toggleAccountSettings() {
+            const accountSection = document.getElementById('accountSettingsSection');
+            if (accountSection) {
+                const isVisible = accountSection.style.display !== 'none';
+                accountSection.style.display = isVisible ? 'none' : 'block';
+            }
+        }
+
+        // Change Username Modal Functions
+        function openChangeUsernameModal() {
+            const modal = document.getElementById('changeUsernameModal');
+            const usernameDisplay = document.getElementById('currentUsernameDisplay');
+            const menuUserName = document.getElementById('menuUserName');
+
+            if (usernameDisplay && menuUserName) {
+                usernameDisplay.textContent = menuUserName.textContent;
+            }
+
+            document.getElementById('newUsername').value = '';
+            document.getElementById('usernamePassword').value = '';
+            document.getElementById('usernameError').style.display = 'none';
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeChangeUsernameModal() {
+            const modal = document.getElementById('changeUsernameModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function submitChangeUsername() {
+            const newUsername = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('usernamePassword').value;
+            const errorDiv = document.getElementById('usernameError');
+
+            // Validation
+            if (!newUsername) {
+                errorDiv.textContent = 'Please enter a new username';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (newUsername.length < 3) {
+                errorDiv.textContent = 'Username must be at least 3 characters';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (newUsername.length > 50) {
+                errorDiv.textContent = 'Username must not exceed 50 characters';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!password) {
+                errorDiv.textContent = 'Please enter your password for confirmation';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Show loading state
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Updating...';
+            btn.disabled = true;
+
+            // Send request to backend
+            fetch('/api/account/change-username', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_username: newUsername, password })
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+
+                if (data.success) {
+                    showToast('Username updated successfully!', 'success');
+                    document.getElementById('menuUserName').textContent = newUsername;
+                    closeChangeUsernameModal();
+                } else {
+                    errorDiv.textContent = data.error || 'Failed to update username';
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                errorDiv.textContent = 'An error occurred. Please try again.';
+                errorDiv.style.display = 'block';
+                console.error(err);
+            });
+        }
+
+        // Change Password Modal Functions
+        function openChangePasswordModal() {
+            const modal = document.getElementById('changePasswordModal');
+
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('passwordError').style.display = 'none';
+            document.getElementById('strengthLevel').textContent = '—';
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeChangePasswordModal() {
+            const modal = document.getElementById('changePasswordModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Check password strength and update UI
+        document.addEventListener('DOMContentLoaded', () => {
+            const newPasswordInput = document.getElementById('newPassword');
+            if (newPasswordInput) {
+                newPasswordInput.addEventListener('input', updatePasswordStrength);
+            }
+        });
+
+        function updatePasswordStrength() {
+            const password = document.getElementById('newPassword').value;
+            const strengthBar = document.querySelector('.strength-bar-fill');
+            const strengthLevel = document.getElementById('strengthLevel');
+
+            if (!strengthBar) return;
+
+            // Remove all classes
+            strengthBar.classList.remove('weak', 'medium', 'strong');
+
+            if (!password) {
+                strengthLevel.textContent = '—';
+                return;
+            }
+
+            let strength = 0;
+            if (password.length >= 8) strength++;
+            if (password.length >= 12) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^a-zA-Z0-9]/.test(password)) strength++;
+
+            if (strength < 2) {
+                strengthBar.classList.add('weak');
+                strengthLevel.textContent = 'Weak';
+            } else if (strength < 4) {
+                strengthBar.classList.add('medium');
+                strengthLevel.textContent = 'Medium';
+            } else {
+                strengthBar.classList.add('strong');
+                strengthLevel.textContent = 'Strong';
+            }
+        }
+
+        function submitChangePassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorDiv = document.getElementById('passwordError');
+
+            // Validation
+            if (!currentPassword) {
+                errorDiv.textContent = 'Please enter your current password';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!newPassword) {
+                errorDiv.textContent = 'Please enter a new password';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (newPassword.length < 8) {
+                errorDiv.textContent = 'Password must be at least 8 characters';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (newPassword === currentPassword) {
+                errorDiv.textContent = 'New password must be different from current password';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Show loading state
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Updating...';
+            btn.disabled = true;
+
+            // Send request to backend
+            fetch('/api/account/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+
+                if (data.success) {
+                    showToast('Password updated successfully!', 'success');
+                    closeChangePasswordModal();
+                } else {
+                    errorDiv.textContent = data.error || 'Failed to update password';
+                    errorDiv.style.display = 'block';
+                }
+            })
+            .catch(err => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                errorDiv.textContent = 'An error occurred. Please try again.';
+                errorDiv.style.display = 'block';
+                console.error(err);
+            });
+        }
 
         function showFormulaReference() {
             const formulaMessage = `
@@ -1931,6 +2195,9 @@
                     tutorialState.completed = [];
                 }
             }
+            // Initialize history system
+            initializeLocalHistoryId();
+            loadUnifiedHistory();
         };
 
         // Attach click handlers to canvases to show coordinates
@@ -1997,6 +2264,8 @@
             const menuLogout = document.getElementById('menuLogout');
             if (menuLogin) menuLogin.style.display = isGuest ? 'block' : 'none';
             if (menuLogout) menuLogout.style.display = (isLoggedIn && !isGuest) ? 'block' : 'none';
+            // Update account settings visibility based on login status
+            updateAccountSettingsVisibility(isLoggedIn && !isGuest);
             updateMenuUserInfo();
         }
 
@@ -3189,6 +3458,10 @@ function getOperationIcon(type){
     if (type.includes('add')) return '<i class="fa-solid fa-plus" aria-hidden="true"></i>';
     if (type.includes('multiply')) return '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
     if (type.includes('init')) return '<i class="fa-solid fa-cogs" aria-hidden="true"></i>';
+    if (type.includes('encrypt')) return '<i class="fa-solid fa-lock" aria-hidden="true"></i>';
+    if (type.includes('decrypt')) return '<i class="fa-solid fa-lock-open" aria-hidden="true"></i>';
+    if (type.includes('dh') || type.includes('key_exchange')) return '<i class="fa-solid fa-handshake" aria-hidden="true"></i>';
+    if (type.includes('discrete_log') || type.includes('attack')) return '<i class="fa-solid fa-shield" aria-hidden="true"></i>';
     return '<i class="fa-solid fa-circle-question" aria-hidden="true"></i>';
 }
 
@@ -3215,6 +3488,21 @@ function getOperationIcon(type){
                 }
                 if (item.operation_type === 'init_real'){
                     return `Init a=${p.a}, b=${p.b}`;
+                }
+                if (item.operation_type === 'encrypt'){
+                    const inputLabel = p.input_type === 'file' ? `File: ${p.filename || 'unknown'}` : `Text: ${(p.plaintext || '').substring(0, 30)}${(p.plaintext || '').length > 30 ? '...' : ''}`;
+                    return `${inputLabel} → Format: ${p.output_format === 'json' ? 'JSON' : 'Base64'}`;
+                }
+                if (item.operation_type === 'decrypt'){
+                    const format = p.format_detected || 'Unknown';
+                    const status = r.success ? '✓ Success' : '✗ Failed';
+                    return `${status} - Format: ${format}`;
+                }
+                if (item.operation_type === 'key_exchange' || item.operation_type === 'diffie_hellman'){
+                    return `DH Demo - Alice secret: ${p.alice_secret || '?'}, Bob secret: ${p.bob_secret || '?'}, Shared: ${r.match ? '✓' : '✗'}`;
+                }
+                if (item.operation_type === 'discrete_log_attack'){
+                    return `Discrete Log Attack - Attempts: ${p.attempts || 0}, ${r.success ? '✓ Found' : '✗ Not found'}`;
                 }
             }catch(_){ }
             return '';
@@ -3376,6 +3664,196 @@ function getOperationIcon(type){
             toggleBtn.classList.remove('active');
         }
 
+        // =================== MENU SEARCH & FILTERING =================== //
+
+        // Filter menu items based on search input
+        function filterMenuItems() {
+            const searchInput = document.getElementById('menuSearchInput');
+            const searchValue = searchInput.value.toLowerCase().trim();
+            const menuCards = document.querySelectorAll('.menu-card');
+            const menuSections = document.querySelectorAll('.menu-section');
+            const searchClear = document.getElementById('menuSearchClear');
+
+            // Show/hide clear button
+            if (searchValue) {
+                searchClear.style.display = 'block';
+            } else {
+                searchClear.style.display = 'none';
+            }
+
+            // If search is empty, show everything
+            if (!searchValue) {
+                menuCards.forEach(card => card.classList.remove('hidden', 'search-highlight'));
+                menuSections.forEach(section => {
+                    section.classList.remove('hidden');
+                    // Show all cards in section
+                    section.querySelectorAll('.menu-card').forEach(card => {
+                        card.classList.remove('hidden');
+                    });
+                });
+                return;
+            }
+
+            // Hide all sections initially
+            menuSections.forEach(section => section.classList.add('hidden'));
+
+            // Filter and show matching items
+            let hasVisibleItems = false;
+            menuSections.forEach(section => {
+                let sectionHasVisibleItems = false;
+                const cardsInSection = section.querySelectorAll('.menu-card');
+
+                cardsInSection.forEach(card => {
+                    const cardText = card.getAttribute('data-menu-text') || '';
+                    const cardLabel = card.querySelector('.menu-card-label')?.textContent.toLowerCase() || '';
+                    const cardHint = card.querySelector('.menu-card-hint')?.textContent.toLowerCase() || '';
+                    const cardTitle = card.getAttribute('title')?.toLowerCase() || '';
+
+                    // Check if search matches any of the card's text fields
+                    if (cardText.includes(searchValue) ||
+                        cardLabel.includes(searchValue) ||
+                        cardHint.includes(searchValue) ||
+                        cardTitle.includes(searchValue)) {
+                        card.classList.remove('hidden');
+                        card.classList.add('search-highlight');
+                        sectionHasVisibleItems = true;
+                        hasVisibleItems = true;
+                    } else {
+                        card.classList.add('hidden');
+                        card.classList.remove('search-highlight');
+                    }
+                });
+
+                // Show section if it has visible items
+                if (sectionHasVisibleItems) {
+                    section.classList.remove('hidden');
+                }
+            });
+
+            // If no items found, show a message
+            if (!hasVisibleItems && document.querySelector('.menu-no-results') === null) {
+                const noResultsMsg = document.createElement('div');
+                noResultsMsg.className = 'menu-no-results';
+                noResultsMsg.innerHTML = `
+                    <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                        <i class="fa-solid fa-search" style="font-size: 2em; margin-bottom: 10px; opacity: 0.5;"></i>
+                        <p style="margin: 10px 0 0 0;">No menu items found</p>
+                        <small style="font-size: 0.85em;">Try a different search term</small>
+                    </div>
+                `;
+                document.querySelector('.history-panel-content').appendChild(noResultsMsg);
+            } else if (hasVisibleItems && document.querySelector('.menu-no-results') !== null) {
+                document.querySelector('.menu-no-results')?.remove();
+            }
+        }
+
+        // Clear menu search
+        function clearMenuSearch() {
+            const searchInput = document.getElementById('menuSearchInput');
+            searchInput.value = '';
+            document.getElementById('menuSearchClear').style.display = 'none';
+            filterMenuItems();
+            searchInput.focus();
+        }
+
+        function toggleMenuSection(header) {
+            // Handle keyboard events (Enter or Space)
+            if (event && event.type === 'keydown') {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+                event.preventDefault();
+            }
+            // Don't toggle if clicking on buttons within the header
+            else if (event && event.target.closest('button')) {
+                event.stopPropagation();
+                return;
+            }
+
+            const section = header.closest('.menu-section');
+            const content = section.querySelector('.menu-section-content');
+            const chevron = header.querySelector('.menu-section-chevron');
+            const isExpanded = header.getAttribute('aria-expanded') === 'true';
+
+            if (content) {
+                content.style.display = isExpanded ? 'none' : 'grid';
+                header.setAttribute('aria-expanded', !isExpanded);
+                if (chevron) {
+                    chevron.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(180deg)';
+                }
+            }
+        }
+
+        // =================== CLIENT-SIDE HISTORY MANAGEMENT =================== //
+
+        // Storage key for local operations history
+        const LOCAL_HISTORY_KEY = 'elliptic_curve_local_history';
+        let localHistoryId = 0;
+
+        // Add an operation to local history
+        function addToLocalHistory(operationType, parameters, result) {
+            try {
+                const timestamp = new Date().toISOString();
+                const entry = {
+                    id: ++localHistoryId,
+                    operation_type: operationType,
+                    parameters,
+                    result,
+                    timestamp,
+                    is_local: true
+                };
+
+                let history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+                history.push(entry);
+
+                // Keep only last 100 local operations
+                if (history.length > 100) {
+                    history = history.slice(-100);
+                }
+
+                localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
+
+                // Refresh the unified history display
+                loadUnifiedHistory();
+
+                return entry;
+            } catch (error) {
+                console.error('Failed to add local history:', error);
+            }
+        }
+
+        // Get all local history from storage
+        function getLocalHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+            } catch (error) {
+                console.error('Failed to retrieve local history:', error);
+                return [];
+            }
+        }
+
+        // Clear local history
+        function clearLocalHistory() {
+            try {
+                localStorage.removeItem(LOCAL_HISTORY_KEY);
+                localHistoryId = 0;
+            } catch (error) {
+                console.error('Failed to clear local history:', error);
+            }
+        }
+
+        // Initialize local history ID from storage
+        function initializeLocalHistoryId() {
+            try {
+                const history = getLocalHistory();
+                if (history.length > 0) {
+                    localHistoryId = Math.max(...history.map(h => h.id || 0));
+                }
+            } catch (error) {
+                console.error('Failed to initialize history ID:', error);
+            }
+        }
+
         async function loadUnifiedHistory() {
             try {
                 // Fetch both Fp and Real history
@@ -3397,7 +3875,13 @@ function getOperationIcon(type){
                     curveType: 'ℝ'
                 }));
 
-                const allHistory = [...fpHistory, ...realHistory];
+                // Include local history (encryption, decryption, DH demo, etc.)
+                const localHistory = getLocalHistory().map(item => ({
+                    ...item,
+                    curveType: 'Local'
+                }));
+
+                const allHistory = [...fpHistory, ...realHistory, ...localHistory];
 
                 // Sort by ID (descending) - assuming higher ID = more recent
                 allHistory.sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -3406,7 +3890,17 @@ function getOperationIcon(type){
             } catch (error) {
                 console.error('Failed to load unified history:', error);
                 const listElement = document.getElementById('unifiedHistoryList');
-                if (listElement) {
+
+                // Show at least local history even if API fails
+                const localHistory = getLocalHistory().map(item => ({
+                    ...item,
+                    curveType: 'Local'
+                }));
+
+                if (localHistory.length > 0) {
+                    localHistory.sort((a, b) => (b.id || 0) - (a.id || 0));
+                    displayUnifiedHistory(localHistory);
+                } else if (listElement) {
                     listElement.innerHTML = `
                         <div class="history-panel-empty">
                             <div class="history-panel-empty-icon">⚠️</div>
@@ -3434,25 +3928,30 @@ function getOperationIcon(type){
             listElement.innerHTML = history.map(item => {
                 const icon = getOperationIcon(item.operation_type);
                 const desc = formatOperationDescription(item);
-                const curveTypeBadge = `<span style="background: ${item.curveType === 'Fp' ? 'var(--accent-primary)' : 'var(--accent-secondary)'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; margin-left: 8px;">${item.curveType}</span>`;
+                const curveTypeClass = item.curveType === 'Fp' ? 'fp' : item.curveType === 'ℝ' ? 'real' : 'local';
+                const curveTypeBadge = `<span class="curveType-badge ${curveTypeClass}">${item.curveType}</span>`;
+                const timestamp = new Date(item.timestamp).toLocaleString();
 
                 return `
-                    <div class="history-item" onclick="replayOperation(${item.id})">
+                    <div class="history-item" data-op="${item.operation_type || ''}" onclick="replayOperation(${item.id})">
                         <span class="operation-icon">${icon}</span>
                         <div class="operation-details">
                             <div class="operation-type">
-                                ${item.operation_type}
+                                ${item.operation_type.replace(/_/g, ' ').toUpperCase()}
                                 ${curveTypeBadge}
                             </div>
                             <div class="operation-params">${desc}</div>
-                            <div class="timestamp">${formatTimestamp(item.timestamp)}</div>
+                            <div class="timestamp">${timestamp}</div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function refreshUnifiedHistory() {
+        function refreshUnifiedHistory(e) {
+            if (e) {
+                e.stopPropagation();
+            }
             loadUnifiedHistory();
             showToast('History refreshed', 'info', 2000);
         }
@@ -3494,14 +3993,20 @@ function getOperationIcon(type){
             }
         }
 
-        async function clearUnifiedHistory() {
-            if (!confirm('Clear all history for both Fp and ℝ curves?')) return;
+        async function clearUnifiedHistory(e) {
+            if (e) {
+                e.stopPropagation();
+            }
+            if (!confirm('Clear all history (Fp, ℝ curves, and local operations)?')) return;
 
             try {
                 await Promise.all([
                     fetch('/api/history/clear/fp', { method: 'DELETE' }),
                     fetch('/api/history/clear/real', { method: 'DELETE' })
                 ]);
+
+                // Also clear local history
+                clearLocalHistory();
 
                 loadUnifiedHistory();
                 showToast('All history cleared', 'success');
@@ -3573,6 +4078,7 @@ function getOperationIcon(type){
             generator: null,
             privateKey: null,
             publicKey: null,
+            usedCustomKey: false,
             allPoints: [],
             currentCiphertext: null,
             animationSteps: [],
@@ -3662,6 +4168,21 @@ function getOperationIcon(type){
             const a = parseInt(document.getElementById('encryptParamA').value);
             const b = parseInt(document.getElementById('encryptParamB').value);
             const p = parseInt(document.getElementById('encryptParamP').value);
+            const keyInput = document.getElementById('encryptionPrivateKey');
+            const keyRaw = keyInput ? keyInput.value.trim() : '';
+            let customPrivateKey = null;
+
+            if (keyRaw !== '') {
+                customPrivateKey = parseInt(keyRaw, 10);
+                if (isNaN(customPrivateKey)) {
+                    showToast('Please enter a valid number for the private key', 'error');
+                    return;
+                }
+                if (customPrivateKey <= 0 || customPrivateKey >= p) {
+                    showToast('Private key must be between 1 and p-1', 'error');
+                    return;
+                }
+            }
 
             if (isNaN(a) || isNaN(b) || isNaN(p)) {
                 showToast('Please enter valid curve parameters', 'error');
@@ -3671,10 +4192,15 @@ function getOperationIcon(type){
             showLoading('Initializing encryption system...');
 
             try {
+                const payload = { a, b, p };
+                if (customPrivateKey !== null) {
+                    payload.private_key = customPrivateKey;
+                }
+
                 const response = await fetch('/api/encryption/init', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ a, b, p })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -3686,6 +4212,7 @@ function getOperationIcon(type){
                     encryptionState.generator = data.generator;
                     encryptionState.privateKey = data.private_key;
                     encryptionState.publicKey = data.public_key;
+                    encryptionState.usedCustomKey = !!data.used_custom_key;
 
                     // Display system information
                     const infoDiv = document.getElementById('encryptionSystemInfo');
@@ -3693,7 +4220,8 @@ function getOperationIcon(type){
 
                     // Display key information
                     const keyInfoDiv = document.getElementById('encryptionKeyInfo');
-                    keyInfoDiv.innerHTML = '<div class="result-box"><h3>Curve Parameters</h3><p><strong>Equation:</strong> y² = x³ + ' + a + 'x + ' + b + ' (mod ' + p + ')</p><p><strong>Generator G:</strong> (' + data.generator.x + ', ' + data.generator.y + ')</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h3>Your Keys</h3><p><strong>Private Key (d):</strong> ' + data.private_key + '</p><p><strong>Public Key (Q):</strong> (' + data.public_key.x + ', ' + data.public_key.y + ')</p><p style="font-size: 0.9em; color: #888; margin-top: 10px;">Q = d × G</p></div>';
+                    const keySourceText = data.used_custom_key ? 'Using your provided private key.' : 'Private key generated randomly.';
+                    keyInfoDiv.innerHTML = '<div class="result-box"><h3>Curve Parameters</h3><p><strong>Equation:</strong> y² = x³ + ' + a + 'x + ' + b + ' (mod ' + p + ')</p><p><strong>Generator G:</strong> (' + data.generator.x + ', ' + data.generator.y + ')</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h3>Your Keys</h3><p><strong>Private Key (d):</strong> ' + data.private_key + (data.used_custom_key ? ' (custom)' : ' (generated)') + '</p><p><strong>Public Key (Q):</strong> (' + data.public_key.x + ', ' + data.public_key.y + ')</p><p style="font-size: 0.9em; color: #888; margin-top: 10px;">Q = d × G. ' + keySourceText + '</p></div>';
 
                     // Enable operation buttons
                     document.getElementById('encryptOperationBtn').disabled = false;
@@ -3764,8 +4292,21 @@ function getOperationIcon(type){
                         : '<p><strong>Original:</strong> "' + plaintext + '"</p>';
 
                     const resultDiv = document.getElementById('encryptionResult');
-                    const ctJson = JSON.stringify(data.ciphertext, null, 2);
-                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Encrypted</h3>' + detailHtml + '<p><strong>Length:</strong> ' + payloadLength + ' bytes</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h4>Ciphertext:</h4><textarea readonly rows="6" style="width: 100%; font-family: monospace; font-size: 0.85em;">' + ctJson + '</textarea><button onclick="copyCiphertextToDecrypt()" style="margin-top: 10px;">Copy to Decrypt Tab</button></div>';
+                    const outputFormat = document.getElementById('encryptionOutputFormat')?.value || 'json';
+
+                    let outputText, outputLabel;
+                    if (outputFormat === 'ciphertext') {
+                        // Convert ciphertext to base64 compact format
+                        const ciphertextCompact = btoa(JSON.stringify(data.ciphertext));
+                        outputText = ciphertextCompact;
+                        outputLabel = 'Ciphertext (Base64)';
+                    } else {
+                        // JSON format
+                        outputText = JSON.stringify(data.ciphertext, null, 2);
+                        outputLabel = 'Ciphertext (JSON)';
+                    }
+
+                    resultDiv.innerHTML = '<div class="result-box success"><h3>✓ Message Encrypted</h3>' + detailHtml + '<p><strong>Length:</strong> ' + payloadLength + ' bytes</p><p><strong>Format:</strong> ' + (outputFormat === 'json' ? 'JSON (Full Details)' : 'Ciphertext (Compact)') + '</p><hr style="margin: 10px 0; border: none; border-top: 1px solid #444;"><h4>' + outputLabel + ':</h4><textarea readonly rows="6" style="width: 100%; font-family: monospace; font-size: 0.85em;">' + outputText + '</textarea><button onclick="copyCiphertextToDecrypt()" style="margin-top: 10px;">Copy to Decrypt Tab</button></div>';
 
                     document.getElementById('encryptionStepsDisplay').innerHTML = '';
                     displayEncryptionSteps(data.steps);
@@ -3777,6 +4318,18 @@ function getOperationIcon(type){
                     if (fileInput) {
                         fileInput.value = '';
                     }
+
+                    // Log to history
+                    addToLocalHistory('encrypt', {
+                        input_type: file ? 'file' : 'text',
+                        filename: file?.name || null,
+                        plaintext: plaintext || null,
+                        output_format: outputFormat,
+                        payload_length: payloadLength
+                    }, {
+                        success: true,
+                        ciphertext_length: outputText.length
+                    });
 
                     showToast('Message encrypted successfully!', 'success');
                 } else {
@@ -3849,10 +4402,6 @@ function getOperationIcon(type){
             let ciphertextText = '';
 
             if (file) {
-                if (!isJsonFile(file)) {
-                    showToast('Please upload a JSON ciphertext file', 'error');
-                    return;
-                }
                 try {
                     ciphertextText = await readFileAsText(file);
                 } catch (readError) {
@@ -3872,16 +4421,28 @@ function getOperationIcon(type){
                 return;
             }
 
+            // Auto-detect format: try JSON first, then base64 ciphertext
             let ciphertext;
             try {
+                // Try parsing as JSON
                 ciphertext = JSON.parse(ciphertextText);
+                if (!isValidCiphertextObject(ciphertext)) {
+                    throw new Error('Invalid JSON structure');
+                }
             } catch (e) {
-                showToast('Invalid JSON format', 'error');
-                return;
-            }
-            if (!isValidCiphertextObject(ciphertext)) {
-                showToast('Ciphertext format is wrong', 'error');
-                return;
+                // If JSON parsing fails, try decoding as base64 ciphertext
+                try {
+                    const decodedText = atob(ciphertextText.trim());
+                    ciphertext = JSON.parse(decodedText);
+                    if (!isValidCiphertextObject(ciphertext)) {
+                        showToast('Invalid ciphertext format', 'error');
+                        return;
+                    }
+                    showToast('Detected compact ciphertext format', 'info');
+                } catch (decodeError) {
+                    showToast('Invalid format. Please provide JSON or base64 ciphertext.', 'error');
+                    return;
+                }
             }
 
             showLoading('Decrypting message...');
@@ -3911,6 +4472,22 @@ function getOperationIcon(type){
                         fileInput.value = '';
                     }
 
+                    // Log to history
+                    let formatDetected = 'JSON';
+                    try {
+                        JSON.parse(ciphertextText);
+                    } catch {
+                        formatDetected = 'Base64';
+                    }
+
+                    addToLocalHistory('decrypt', {
+                        format_detected: formatDetected,
+                        plaintext_length: data.plaintext?.length || 0
+                    }, {
+                        success: true,
+                        plaintext: data.plaintext?.substring(0, 50) || null
+                    });
+
                     showToast('Message decrypted successfully!', 'success');
                 } else {
                     showToast('Error: ' + data.error, 'error');
@@ -3922,10 +4499,133 @@ function getOperationIcon(type){
             }
         }
 
+        // Helper functions for encryption/decryption UI
+        function switchEncryptInputMethod(method) {
+            const textTab = document.getElementById('encryptTextTab');
+            const fileTab = document.getElementById('encryptFileTab');
+            const textInput = document.getElementById('encryptTextInput');
+            const fileInput = document.getElementById('encryptFileInput');
+
+            if (method === 'text') {
+                textTab.classList.add('active');
+                fileTab.classList.remove('active');
+                textInput.classList.add('active');
+                fileInput.classList.remove('active');
+            } else {
+                textTab.classList.remove('active');
+                fileTab.classList.add('active');
+                textInput.classList.remove('active');
+                fileInput.classList.add('active');
+            }
+        }
+
+        function switchDecryptInputMethod(method) {
+            const pasteTab = document.getElementById('decryptPasteTab');
+            const fileTab = document.getElementById('decryptFileTab');
+            const pasteInput = document.getElementById('decryptPasteInput');
+            const fileInput = document.getElementById('decryptFileInput');
+
+            if (method === 'paste') {
+                pasteTab.classList.add('active');
+                fileTab.classList.remove('active');
+                pasteInput.classList.add('active');
+                fileInput.classList.remove('active');
+            } else {
+                pasteTab.classList.remove('active');
+                fileTab.classList.add('active');
+                pasteInput.classList.remove('active');
+                fileInput.classList.add('active');
+            }
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('plaintextInput');
+            const charCountEl = document.getElementById('charCount');
+            const count = textarea?.value?.length || 0;
+            charCountEl.textContent = count + ' character' + (count !== 1 ? 's' : '');
+        }
+
+        function updateFileInfo(input, targetId) {
+            const file = input.files[0];
+            const infoDiv = document.getElementById(targetId);
+            if (file) {
+                const size = (file.size / 1024).toFixed(2);
+                infoDiv.innerHTML = `
+                    <div class="file-selected">
+                        <i class="fa-solid fa-file-check"></i>
+                        <div class="file-details">
+                            <strong>${file.name}</strong>
+                            <span>${size} KB • ${file.type || 'Unknown type'}</span>
+                        </div>
+                        <button type="button" onclick="clearFileInput('${input.id}', '${targetId}')" class="file-remove-btn">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                infoDiv.innerHTML = '';
+            }
+        }
+
+        function clearFileInput(inputId, infoId) {
+            const input = document.getElementById(inputId);
+            const infoDiv = document.getElementById(infoId);
+            if (input) input.value = '';
+            if (infoDiv) infoDiv.innerHTML = '';
+        }
+
+        function selectFormat(format) {
+            const jsonRadio = document.getElementById('formatJson');
+            const ciphertextRadio = document.getElementById('formatCiphertext');
+            const select = document.getElementById('encryptionOutputFormat');
+
+            if (format === 'json') {
+                jsonRadio.checked = true;
+                select.value = 'json';
+            } else {
+                ciphertextRadio.checked = true;
+                select.value = 'ciphertext';
+            }
+        }
+
+        function updateCiphertextInfo() {
+            const textarea = document.getElementById('ciphertextInput');
+            const formatBadge = document.getElementById('ciphertextFormat');
+            const lengthBadge = document.getElementById('ciphertextLength');
+            const text = textarea?.value || '';
+
+            lengthBadge.textContent = text.length + ' chars';
+
+            if (!text) {
+                formatBadge.innerHTML = '<i class="fa-solid fa-circle-question"></i> Waiting for input';
+                formatBadge.className = 'format-badge';
+                return;
+            }
+
+            try {
+                JSON.parse(text);
+                formatBadge.innerHTML = '<i class="fa-solid fa-code"></i> JSON detected';
+                formatBadge.className = 'format-badge json';
+            } catch {
+                formatBadge.innerHTML = '<i class="fa-solid fa-compress"></i> Ciphertext detected';
+                formatBadge.className = 'format-badge ciphertext';
+            }
+        }
+
+        function clearCiphertext() {
+            document.getElementById('ciphertextInput').value = '';
+            updateCiphertextInfo();
+        }
+
+        function pasteSampleCiphertext() {
+            showToast('Generate a ciphertext first using the Encrypt tab', 'info');
+        }
+
         function copyCiphertextToDecrypt() {
             const ciphertext = JSON.stringify(encryptionState.currentCiphertext, null, 2);
             document.getElementById('ciphertextInput').value = ciphertext;
             selectEncryptionPane('decryptPane');
+            updateCiphertextInfo();
             showToast('Ciphertext copied to decrypt tab', 'success');
         }
 
@@ -4985,7 +5685,9 @@ function getOperationIcon(type){
             currentStep: 0,
             steps: [],
             animationInterval: null,
-            demoData: null
+            demoData: null,
+            animFrame: null,
+            animTick: 0
         };
 
         // For demonstration tab
@@ -5032,13 +5734,13 @@ function getOperationIcon(type){
             const container = document.getElementById('dhStepsContainer');
             const resultDiv = document.getElementById('dhDemoResult');
 
-            let html = '<div class="steps-container">';
+            let html = '';
             data.steps.forEach((step, index) => {
                 const isActive = index === dhState.currentStep ? 'active' : '';
                 html += `
-                    <div class="step-item ${isActive}" id="dh-tab-step-${index}">
+                    <div class="step-item ${isActive}" id="dh-tab-step-${index}" data-step-number="${index + 1}">
                         <div class="step-header">
-                            <span>Step ${step.step}: ${step.description}</span>
+                            <span>${step.description}</span>
                         </div>
                         <div class="step-content">
                             ${step.detail}
@@ -5047,32 +5749,42 @@ function getOperationIcon(type){
                     </div>
                 `;
             });
-            html += '</div>';
 
             container.innerHTML = html;
 
             // Show summary
             resultDiv.innerHTML = `
-                <div class="result-box" style="margin-top: 20px;">
-                    <h3>Summary</h3>
+                <div class="result-box">
+                    <h3>Key Exchange Complete</h3>
                     <p><strong>Base Point (G):</strong> (${data.summary.base_point.x}, ${data.summary.base_point.y})</p>
-                    <p><strong>Alice's Private Key:</strong> ${data.summary.alice_private}</p>
-                    <p><strong>Bob's Private Key:</strong> ${data.summary.bob_private}</p>
-                    <p style="color: #10b981;"><strong>Shared Secret:</strong> (${data.summary.shared_secret.x}, ${data.summary.shared_secret.y})</p>
+                    <p><strong>Alice's Private Key (a):</strong> ${data.summary.alice_private}</p>
+                    <p><strong>Alice's Public Key (A):</strong> (${data.summary.alice_public.x}, ${data.summary.alice_public.y})</p>
+                    <p><strong>Bob's Private Key (b):</strong> ${data.summary.bob_private}</p>
+                    <p><strong>Bob's Public Key (B):</strong> (${data.summary.bob_public.x}, ${data.summary.bob_public.y})</p>
+                    <p style="color: #10b981; font-size: 1.05em; margin-top: 12px;"><strong>🔑 Shared Secret:</strong> (${data.summary.shared_secret.x}, ${data.summary.shared_secret.y})</p>
                 </div>
             `;
 
-            // Show animation controls
+            // Show animation controls and canvas
             const controls = document.getElementById('dhAnimControls');
-            controls.style.display = 'grid';
+            controls.classList.add('active');
 
             const slider = document.getElementById('dhStepSlider');
             slider.max = Math.max(0, data.steps.length - 1);
             slider.value = 0;
 
             const canvas = document.getElementById('dhCanvas');
-            if (canvas) {
-                canvas.style.display = data.steps.length ? 'block' : 'none';
+            const canvasHint = document.getElementById('dhCanvasHint');
+            if (canvas && canvasHint) {
+                if (data.steps.length) {
+                    canvas.style.display = 'block';
+                    canvas.classList.add('visible');
+                    canvasHint.style.display = 'none';
+                } else {
+                    canvas.style.display = 'none';
+                    canvas.classList.remove('visible');
+                    canvasHint.style.display = 'flex';
+                }
             }
 
             updateDHStepDisplay();
@@ -5098,19 +5810,20 @@ function getOperationIcon(type){
         }
 
         function playDHAnimation() {
+            const playBtn = document.getElementById('dhPlayBtn');
             if (dhState.animationInterval) {
                 clearInterval(dhState.animationInterval);
                 dhState.animationInterval = null;
-                document.getElementById('dhPlayBtn').textContent = 'Play';
+                playBtn.innerHTML = '<i class="fa-solid fa-play"></i><span>Play</span>';
             } else {
-                document.getElementById('dhPlayBtn').textContent = 'Pause';
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i><span>Pause</span>';
                 dhState.animationInterval = setInterval(() => {
                     if (dhState.currentStep < dhState.steps.length - 1) {
                         nextDHStep();
                     } else {
                         clearInterval(dhState.animationInterval);
                         dhState.animationInterval = null;
-                        document.getElementById('dhPlayBtn').textContent = 'Play';
+                        playBtn.innerHTML = '<i class="fa-solid fa-play"></i><span>Play</span>';
                         dhState.currentStep = 0;
                     }
                 }, 1500);
@@ -5143,6 +5856,17 @@ function getOperationIcon(type){
             }
 
             drawDHVisualization();
+            ensureDHAnimationLoop();
+        }
+
+        function ensureDHAnimationLoop() {
+            if (dhState.animFrame) return;
+            const tick = () => {
+                dhState.animTick = (dhState.animTick + 1) % 1000000;
+                drawDHVisualization();
+                dhState.animFrame = requestAnimationFrame(tick);
+            };
+            dhState.animFrame = requestAnimationFrame(tick);
         }
 
         function drawDHVisualization() {
@@ -5155,149 +5879,314 @@ function getOperationIcon(type){
 
             ctx.clearRect(0, 0, width, height);
 
-            const aliceColor = '#ff6b9d';
-            const bobColor = '#4a9eff';
-            const sharedColor = '#10b981';
-            const baseColor = '#fbbf24';
+            const stepIndex = dhState.currentStep;
+            const currentStep = dhState.steps[stepIndex] || {};
+            const totalSteps = dhState.steps.length || 1;
 
-            const aliceX = 100;
-            const bobX = 500;
-            const centerY = 200;
-            const baseY = 100;
+            const t = dhState.animTick || 0;
+            const pulse = 0.35 + 0.3 * Math.sin(t * 0.06);
+            const pulseSlow = 0.35 + 0.25 * Math.sin(t * 0.03);
+            const travel = (t % 320) / 320;
+            const travelOffset = ((t + 160) % 320) / 320;
 
-            const textColor = document.body.getAttribute('data-theme') === 'dark' ? '#edf2ff' : '#031230';
-            const textSecondary = document.body.getAttribute('data-theme') === 'dark' ? '#cfd6ff' : '#0b1f45';
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const colors = {
+                alice: '#f472b6', // soft coral
+                bob: '#38bdf8',   // sky blue
+                shared: '#22c55e',
+                base: '#facc15',
+                channel: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(56,189,248,0.08)',
+                text: isDark ? '#e8edff' : '#0f172a',
+                textSubtle: isDark ? '#cdd6f5' : '#475569',
+                border: isDark ? 'rgba(232,237,255,0.25)' : 'rgba(15,23,42,0.08)',
+                bgTop: isDark ? '#0c1224' : '#f9fafb',
+                bgBottom: isDark ? '#111a33' : '#edf2ff'
+            };
 
-            ctx.fillStyle = textColor;
-            ctx.font = 'bold 16px sans-serif';
+            const aliceX = 170;
+            const bobX = width - 170;
+            const actorY = 220;
+            const channelTop = 120;
+            const channelHeight = 170;
+            const baseY = 80;
+            const sharedY = height - 58;
+
+            const showBase = stepIndex >= 0;
+            const showAlicePrivate = stepIndex >= 1;
+            const showAlicePublic = stepIndex >= 2;
+            const showBobPrivate = stepIndex >= 3;
+            const showBobPublic = stepIndex >= 4;
+            const showExchange = stepIndex >= 5;
+            const showComputeAlice = stepIndex >= 6;
+            const showComputeBob = stepIndex >= 7;
+            const showSharedSecret = stepIndex >= 8;
+
+            // Soft gradient backdrop
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, colors.bgTop);
+            bgGradient.addColorStop(1, colors.bgBottom);
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Ambient blobs for depth
+            drawBlob(ctx, width * 0.22, height * 0.18, 200, isDark ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.12)');
+            drawBlob(ctx, width * 0.78, height * 0.85, 240, isDark ? 'rgba(244,114,182,0.08)' : 'rgba(244,114,182,0.12)');
+
+            // Decorative glow behind canvas content
+            if (showSharedSecret) {
+                drawHalo(ctx, width / 2, sharedY, 120 + 20 * pulseSlow, colors.shared, 0.08);
+            }
+            if (showBase) {
+                drawHalo(ctx, width / 2, baseY, 90 + 15 * pulseSlow, colors.base, 0.06);
+            }
+
+            // Public channel band
+            drawRoundedRect(ctx, 70, channelTop, width - 140, channelHeight, 18, colors.channel, colors.border, 10);
+            ctx.fillStyle = colors.textSubtle;
+            ctx.font = '12.5px "Inter", system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('Diffie-Hellman Key Exchange Protocol', width / 2, 25);
+            ctx.fillText('Public channel (visible to everyone)', width / 2, channelTop + 18);
 
-            if (dhState.currentStep >= 0) {
-                ctx.fillStyle = baseColor;
-                ctx.beginPath();
-                ctx.arc(width / 2, baseY, 20, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#000';
-                ctx.font = 'bold 14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('G', width / 2, baseY + 5);
-                ctx.fillStyle = textSecondary;
-                ctx.font = '12px sans-serif';
-                ctx.fillText(`G = (${dhState.demoData.summary.base_point.x}, ${dhState.demoData.summary.base_point.y})`, width / 2, baseY - 30);
-            }
-
-            ctx.fillStyle = aliceColor;
-            ctx.beginPath();
-            ctx.arc(aliceX, centerY, 30, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 18px sans-serif';
+            // Title and active step
+            ctx.fillStyle = colors.text;
+            ctx.font = '600 18px "Inter", system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('A', aliceX, centerY + 6);
-            ctx.fillStyle = textColor;
-            ctx.font = '14px sans-serif';
-            ctx.fillText('Alice', aliceX, centerY - 45);
+            ctx.fillText('Diffie-Hellman Key Exchange', width / 2, 22);
+            ctx.fillStyle = colors.textSubtle;
+            ctx.font = '13px "Inter", system-ui, sans-serif';
+            const stepLabel = currentStep.description ? `Step ${stepIndex + 1}/${totalSteps}: ${currentStep.description}` : `Step ${stepIndex + 1}/${totalSteps}`;
+            ctx.fillText(stepLabel, width / 2, 42);
+            drawProgressPill(ctx, width - 200, 18, 160, 12, stepIndex, totalSteps, colors);
 
-            ctx.fillStyle = bobColor;
-            ctx.beginPath();
-            ctx.arc(bobX, centerY, 30, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 18px sans-serif';
-            ctx.fillText('B', bobX, centerY + 6);
-            ctx.fillStyle = textColor;
-            ctx.font = '14px sans-serif';
-            ctx.fillText('Bob', bobX, centerY - 45);
+            // Base point card
+            if (showBase) {
+                drawInfoCard(
+                    ctx,
+                    width / 2 - 105,
+                    baseY - 20,
+                    210,
+                    55,
+                    colors.base,
+                    'Base point G',
+                    `(${dhState.demoData.summary.base_point.x}, ${dhState.demoData.summary.base_point.y})`
+                );
+            }
 
-            if (dhState.currentStep >= 1) {
-                ctx.fillStyle = aliceColor;
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(`Private: a = ${dhState.demoData.summary.alice_private}`, aliceX, centerY + 55);
-                ctx.fillText('(Secret)', aliceX, centerY + 70);
+            // Participants
+            drawActor(ctx, aliceX, actorY, colors.alice, 'Alice', pulseSlow);
+            drawActor(ctx, bobX, actorY, colors.bob, 'Bob', pulseSlow);
+
+            if (showAlicePrivate) {
+                drawTag(ctx, aliceX, actorY + 54, colors.alice, `Private: a = ${dhState.demoData.summary.alice_private}`);
             }
-            if (dhState.currentStep >= 2) {
-                ctx.fillStyle = bobColor;
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(`Private: b = ${dhState.demoData.summary.bob_private}`, bobX, centerY + 55);
-                ctx.fillText('(Secret)', bobX, centerY + 70);
+            if (showBobPrivate) {
+                drawTag(ctx, bobX, actorY + 54, colors.bob, `Private: b = ${dhState.demoData.summary.bob_private}`);
             }
-            if (dhState.currentStep >= 3) {
-                drawArrow(ctx, width / 2 + 20, baseY + 15, aliceX, centerY - 35, baseColor, 2);
-                ctx.fillStyle = aliceColor;
-                ctx.font = 'bold 11px sans-serif';
-                ctx.fillText(`Public: A = ${dhState.demoData.summary.alice_private} × G`, aliceX, centerY + 90);
-                ctx.font = '10px sans-serif';
-                ctx.fillText(`(${dhState.demoData.summary.alice_public.x}, ${dhState.demoData.summary.alice_public.y})`, aliceX, centerY + 105);
+
+            // Public keys derived from G
+            if (showAlicePublic) {
+                drawArrow(ctx, width / 2 - 10, baseY + 30, aliceX, actorY - 35, colors.alice, 2.5, false, true, -t * 0.5);
+                drawMovingDot(ctx, width / 2 - 10, baseY + 30, aliceX, actorY - 35, colors.alice, travel, 5.5);
+                drawTag(ctx, aliceX, actorY - 55, colors.alice, 'A = a × G');
+                drawSubLabel(ctx, aliceX, actorY - 68, colors.textSubtle, `(${dhState.demoData.summary.alice_public.x}, ${dhState.demoData.summary.alice_public.y})`);
             }
-            if (dhState.currentStep >= 4) {
-                drawArrow(ctx, width / 2 - 20, baseY + 15, bobX, centerY - 35, baseColor, 2);
-                ctx.fillStyle = bobColor;
-                ctx.font = 'bold 11px sans-serif';
-                ctx.fillText(`Public: B = ${dhState.demoData.summary.bob_private} × G`, bobX, centerY + 90);
-                ctx.font = '10px sans-serif';
-                ctx.fillText(`(${dhState.demoData.summary.bob_public.x}, ${dhState.demoData.summary.bob_public.y})`, bobX, centerY + 105);
+
+            if (showBobPublic) {
+                drawArrow(ctx, width / 2 + 10, baseY + 30, bobX, actorY - 35, colors.bob, 2.5, false, true, -t * 0.5);
+                drawMovingDot(ctx, width / 2 + 10, baseY + 30, bobX, actorY - 35, colors.bob, travelOffset, 5.5);
+                drawTag(ctx, bobX, actorY - 55, colors.bob, 'B = b × G');
+                drawSubLabel(ctx, bobX, actorY - 68, colors.textSubtle, `(${dhState.demoData.summary.bob_public.x}, ${dhState.demoData.summary.bob_public.y})`);
             }
-            if (dhState.currentStep >= 5) {
-                drawArrow(ctx, aliceX + 35, centerY - 10, bobX - 35, centerY - 10, aliceColor, 3, true);
-                ctx.fillStyle = aliceColor;
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('A →', (aliceX + bobX) / 2, centerY - 20);
-                ctx.font = '9px sans-serif';
-                ctx.fillText('(Public)', (aliceX + bobX) / 2, centerY - 7);
+
+            // Exchange over the public channel
+            if (showExchange) {
+                drawArrow(ctx, aliceX + 38, actorY - 8, bobX - 38, actorY - 8, colors.alice, 3.2, true, false, -t * 1.6);
+                drawArrow(ctx, bobX - 38, actorY + 18, aliceX + 38, actorY + 18, colors.bob, 3.2, true, false, t * 1.6);
+                drawMovingDot(ctx, aliceX + 38, actorY - 8, bobX - 38, actorY - 8, colors.alice, travel, 6);
+                drawMovingDot(ctx, bobX - 38, actorY + 18, aliceX + 38, actorY + 18, colors.bob, travelOffset, 6);
+                drawSubLabel(ctx, (aliceX + bobX) / 2, actorY - 20, colors.textSubtle, 'Send A openly');
+                drawSubLabel(ctx, (aliceX + bobX) / 2, actorY + 35, colors.textSubtle, 'Send B openly');
             }
-            if (dhState.currentStep >= 6) {
-                drawArrow(ctx, bobX - 35, centerY + 10, aliceX + 35, centerY + 10, bobColor, 3, true);
-                ctx.fillStyle = bobColor;
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('← B', (aliceX + bobX) / 2, centerY + 23);
-                ctx.font = '9px sans-serif';
-                ctx.fillText('(Public)', (aliceX + bobX) / 2, centerY + 36);
+
+            if (showComputeAlice) {
+                drawTag(ctx, aliceX, actorY + 82, colors.alice, 'Compute S = a × B');
             }
-            if (dhState.currentStep >= 7) {
-                ctx.fillStyle = aliceColor;
-                ctx.font = 'bold 10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Computes:', aliceX, centerY + 125);
-                ctx.fillText(`${dhState.demoData.summary.alice_private} × B`, aliceX, centerY + 140);
+            if (showComputeBob) {
+                drawTag(ctx, bobX, actorY + 82, colors.bob, 'Compute S = b × A');
             }
-            if (dhState.currentStep >= 8) {
-                ctx.fillStyle = bobColor;
-                ctx.font = 'bold 10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Computes:', bobX, centerY + 125);
-                ctx.fillText(`${dhState.demoData.summary.bob_private} × A`, bobX, centerY + 140);
-            }
-            if (dhState.currentStep >= 8) {
-                const sharedY = 360;
-                ctx.fillStyle = sharedColor;
+
+            // Shared secret visualization
+            if (showSharedSecret) {
+                drawArrow(ctx, aliceX + 12, actorY + 35, width / 2 - 30, sharedY - 25, colors.shared, 2, false, true, -t);
+                drawArrow(ctx, bobX - 12, actorY + 35, width / 2 + 30, sharedY - 25, colors.shared, 2, false, true, t);
+                drawMovingDot(ctx, aliceX + 12, actorY + 35, width / 2 - 30, sharedY - 25, colors.shared, travel, 6);
+                drawMovingDot(ctx, bobX - 12, actorY + 35, width / 2 + 30, sharedY - 25, colors.shared, travelOffset, 6);
+
+                ctx.save();
+                ctx.shadowColor = colors.shared;
+                ctx.shadowBlur = 16 + 7 * pulse;
+                ctx.fillStyle = colors.shared;
                 ctx.beginPath();
-                ctx.arc(width / 2, sharedY, 25, 0, Math.PI * 2);
+                ctx.arc(width / 2, sharedY, 26 + 2.5 * pulse, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.restore();
+
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 16px sans-serif';
+                ctx.font = 'bold 17px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('🔑', width / 2, sharedY + 6);
-                ctx.fillStyle = sharedColor;
-                ctx.font = 'bold 12px sans-serif';
-                ctx.fillText('Shared Secret', width / 2, sharedY - 35);
-                ctx.font = '11px sans-serif';
-                ctx.fillText(`(${dhState.demoData.summary.shared_secret.x}, ${dhState.demoData.summary.shared_secret.y})`, width / 2, sharedY - 20);
-                drawArrow(ctx, aliceX + 15, centerY + 30, width / 2 - 20, sharedY - 25, sharedColor, 2, false, true);
-                drawArrow(ctx, bobX - 15, centerY + 30, width / 2 + 20, sharedY - 25, sharedColor, 2, false, true);
+                ctx.fillStyle = colors.text;
+                ctx.font = '12px "Inter", system-ui, sans-serif';
+                ctx.fillText('Shared secret', width / 2, sharedY - 34);
+                ctx.fillStyle = colors.textSubtle;
+                ctx.fillText(`(${dhState.demoData.summary.shared_secret.x}, ${dhState.demoData.summary.shared_secret.y})`, width / 2, sharedY - 18);
+            }
+
+            // Legend for quick reading
+            drawLegend(ctx, width - 175, 20, colors, isDark);
+
+            function drawRoundedRect(context, x, y, w, h, r, fill, stroke, shadow = 0) {
+                context.save();
+                if (shadow) {
+                    context.shadowColor = 'rgba(0,0,0,0.15)';
+                    context.shadowBlur = shadow;
+                    context.shadowOffsetY = 4;
+                }
+                context.beginPath();
+                context.moveTo(x + r, y);
+                context.lineTo(x + w - r, y);
+                context.quadraticCurveTo(x + w, y, x + w, y + r);
+                context.lineTo(x + w, y + h - r);
+                context.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                context.lineTo(x + r, y + h);
+                context.quadraticCurveTo(x, y + h, x, y + h - r);
+                context.lineTo(x, y + r);
+                context.quadraticCurveTo(x, y, x + r, y);
+                context.closePath();
+                context.fillStyle = fill;
+                context.fill();
+                context.strokeStyle = stroke;
+                context.lineWidth = 1;
+                context.stroke();
+                context.restore();
+            }
+
+            function drawInfoCard(context, x, y, w, h, color, title, subtitle) {
+                drawRoundedRect(context, x, y, w, h, 10, `${color}22`, colors.border);
+                context.fillStyle = color;
+                context.font = 'bold 12px sans-serif';
+                context.textAlign = 'center';
+                context.fillText(title, x + w / 2, y + 18);
+                context.fillStyle = colors.text;
+                context.font = '12px sans-serif';
+                context.fillText(subtitle, x + w / 2, y + h - 12);
+            }
+
+            function drawActor(context, x, y, color, label, pulse = 0.5) {
+                context.save();
+                context.shadowColor = `${color}66`;
+                context.shadowBlur = 14 + 6 * pulse;
+                context.fillStyle = color;
+                context.beginPath();
+                context.arc(x, y, 34, 0, Math.PI * 2);
+                context.fill();
+                context.restore();
+
+                // Outer ring
+                context.strokeStyle = `${color}55`;
+                context.lineWidth = 3;
+                context.beginPath();
+                context.arc(x, y, 38 + 2 * pulse, 0, Math.PI * 2);
+                context.stroke();
+
+                context.fillStyle = '#fff';
+                context.font = 'bold 18px "Inter", system-ui, sans-serif';
+                context.textAlign = 'center';
+                context.fillText(label[0], x, y + 6);
+                context.fillStyle = colors.text;
+                context.font = '14px "Inter", system-ui, sans-serif';
+                context.fillText(label, x, y - 48);
+            }
+
+            function drawTag(context, x, y, color, text) {
+                context.save();
+                const padding = 8;
+                context.font = '11.5px "Inter", system-ui, sans-serif';
+                const textWidth = context.measureText(text).width;
+                const boxWidth = textWidth + padding * 2;
+                const boxHeight = 20;
+                drawRoundedRect(context, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 10, `${color}1a`, `${color}55`);
+                context.fillStyle = color;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(text, x, y);
+                context.restore();
+            }
+
+            function drawSubLabel(context, x, y, color, text) {
+                context.fillStyle = color;
+                context.font = '11px sans-serif';
+                context.textAlign = 'center';
+                context.fillText(text, x, y);
+            }
+
+            function drawLegend(context, x, y, palette, darkMode) {
+                const entries = [
+                    { color: palette.alice, label: 'Alice' },
+                    { color: palette.bob, label: 'Bob' },
+                    { color: palette.base, label: 'Base point G' },
+                    { color: palette.shared, label: 'Shared secret S' }
+                ];
+
+                drawRoundedRect(context, x, y, 150, 90, 10, darkMode ? 'rgba(14,19,34,0.7)' : 'rgba(255,255,255,0.85)', palette.border);
+                context.font = '12px sans-serif';
+                context.fillStyle = colors.textSubtle;
+                context.textAlign = 'left';
+                context.fillText('Legend', x + 10, y + 16);
+                entries.forEach((item, idx) => {
+                    const itemY = y + 32 + idx * 16;
+                    context.fillStyle = item.color;
+                    context.beginPath();
+                    context.arc(x + 12, itemY, 5, 0, Math.PI * 2);
+                    context.fill();
+                    context.fillStyle = colors.text;
+                    context.fillText(item.label, x + 24, itemY + 4);
+                });
+            }
+
+            function drawBlob(context, x, y, radius, color) {
+                context.save();
+                const gradient = context.createRadialGradient(x, y, radius * 0.1, x, y, radius);
+                gradient.addColorStop(0, color);
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                context.fillStyle = gradient;
+                context.beginPath();
+                context.arc(x, y, radius, 0, Math.PI * 2);
+                context.fill();
+                context.restore();
+            }
+
+            function drawProgressPill(context, x, y, width, height, idx, total, palette) {
+                if (!total) return;
+                const progress = Math.max(0, Math.min(1, (idx + 1) / total));
+                drawRoundedRect(context, x, y, width, height, height / 2, palette.channel, palette.border);
+                drawRoundedRect(context, x, y, width * progress, height, height / 2, `${palette.shared}99`, 'transparent');
+                context.fillStyle = palette.text;
+                context.font = '11.5px "Inter", system-ui, sans-serif';
+                context.textAlign = 'center';
+                context.fillText(`Step ${idx + 1} of ${total}`, x + width / 2, y + height - 4);
             }
         }
 
-        function drawArrow(ctx, fromX, fromY, toX, toY, color, width = 2, dashed = false, curved = false) {
+        function drawArrow(ctx, fromX, fromY, toX, toY, color, width = 2, dashed = false, curved = false, dashOffset = 0) {
             ctx.save();
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
             ctx.lineWidth = width;
-            if (dashed) ctx.setLineDash([8, 4]);
+            if (dashed) {
+                ctx.setLineDash([10, 6]);
+                ctx.lineDashOffset = dashOffset;
+            }
             ctx.beginPath();
             if (curved) {
                 const midX = (fromX + toX) / 2;
@@ -5329,6 +6218,33 @@ function getOperationIcon(type){
             }
             ctx.setLineDash([]);
             ctx.restore();
+        }
+
+        function drawMovingDot(context, fromX, fromY, toX, toY, color, progress, size = 6) {
+            const x = fromX + (toX - fromX) * progress;
+            const y = fromY + (toY - fromY) * progress;
+            context.save();
+            context.fillStyle = color;
+            context.shadowColor = color;
+            context.shadowBlur = 12;
+            context.beginPath();
+            context.arc(x, y, size, 0, Math.PI * 2);
+            context.fill();
+            context.restore();
+        }
+
+        function drawHalo(context, x, y, radius, color, alpha) {
+            context.save();
+            context.fillStyle = `${color}${alphaHex(alpha)}`;
+            context.beginPath();
+            context.arc(x, y, radius, 0, Math.PI * 2);
+            context.fill();
+            context.restore();
+        }
+
+        function alphaHex(alpha) {
+            const clamped = Math.max(0, Math.min(1, alpha));
+            return Math.round(clamped * 255).toString(16).padStart(2, '0');
         }
 
         // =================== DISCRETE LOGARITHM DEMONSTRATION =================== //
