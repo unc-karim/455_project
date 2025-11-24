@@ -3216,9 +3216,9 @@
             _realAddAnim.raf = requestAnimationFrame(tick);
         }
 
-        function drawRealPoint(ctx, canvas, pt, color, label, showLabel){
+        function drawRealPoint(ctx, canvas, pt, color, label, showLabel, size = 5){
             const {px, py} = mapRealToCanvas(canvas, pt.x, pt.y);
-            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 2*Math.PI); ctx.fill();
+            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, size, 0, 2*Math.PI); ctx.fill();
             if (showLabel){
                 ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                 ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(`${label}(${formatNum(pt.x)}, ${formatNum(pt.y)})`, px, py - 12 + 1);
@@ -3273,6 +3273,21 @@
                 startRealMultiplicationAnimation();
                 const disp = data.result.display;
                 const resultText = `P = (${formatNum(px)}, ${formatNum(py)}), k = ${k}, ${k} × P = ${disp}`;
+                let stepsHTML = '';
+                if (data.steps && data.steps.length > 0) {
+                    stepsHTML = `
+                        <div class="steps-container">
+                            <h4>Calculation Steps</h4>
+                            ${data.steps.map((step, i) => `
+                                <div class="step-item">
+                                    <div class="step-header">
+                                        <span>${step}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
                 resDiv.innerHTML = `
                     <div class="operation-result">
                         <strong>P</strong> = (${formatNum(px)}, ${formatNum(py)})<br>
@@ -3283,6 +3298,7 @@
                         <button class="copy-btn" onclick="copyResultAsText('${resultText}', 'Multiplication result')">📋 Copy Text</button>
                         <button class="copy-btn" onclick='copyResultAsJSON({P: {x: ${px}, y: ${py}}, k: ${k}, result: ${JSON.stringify(data.result)}, steps: ${JSON.stringify(data.steps || [])}}, "Multiplication result")'>📄 Copy JSON</button>
                     </div>
+                    ${stepsHTML}
                     `;
                 const realScalarVisible = document.getElementById('realScalarToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
                 applyStepsVisibility('realScalar', realScalarVisible);
@@ -3297,30 +3313,51 @@
             clearCanvas(ctx, cssWidth, cssHeight);
             drawRealAxesGrid(ctx, canvas);
             drawRealCurve(ctx, canvas, realCurve.a, realCurve.b);
-            // Draw all computed multiples; always label as 1P, 2P, ...
+
+            // Draw all computed intermediate points from double-and-add algorithm
             if (realScalarPoints && realScalarPoints.length){
-                for (let i=0;i<realScalarPoints.length; i++){
+                // Color scheme matching addition style: different colors for each result
+                const colors = ['#2563eb', '#f97316', '#166534', '#7c2d12', '#0e42a4'];
+
+                // Draw points with simple style (like point addition visualization)
+                for (let i = 0; i < realScalarPoints.length; i++){
                     const pt = realScalarPoints[i];
                     if (pt.x !== null){
-                        // draw point
-                        drawRealPoint(ctx, canvas, pt, '#64748b', '', false);
                         const pxy = mapRealToCanvas(canvas, pt.x, pt.y);
-                        const lbl = `${i+1}P`;
-                        // always draw 1P,2P label
-                        ctx.font = '12px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'bottom';
-                        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                        ctx.fillText(lbl, pxy.px, pxy.py - 12 + 1);
-                        ctx.fillStyle = '#bbb';
-                        ctx.fillText(lbl, pxy.px, pxy.py - 12);
-                        // if toggled, also show coordinates under the label
+                        const color = colors[i % colors.length];
+                        const size = 6;
+
+                        // Draw filled circle
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(pxy.px, pxy.py, size, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Draw stroke outline (like in point addition)
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(pxy.px, pxy.py, size + 3, 0, 2 * Math.PI);
+                        ctx.stroke();
+
+                        // Draw label - show the actual point computation (1P, 2P, 4P, etc.)
+                        let label = `${2**i}P`;
+                        ctx.fillStyle = color;
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(`${label}`, pxy.px + size + 10, pxy.py);
+
+                        // Show coordinates if toggled
                         if (showLabels){
                             const coord = `(${formatNum(pt.x)}, ${formatNum(pt.y)})`;
+                            ctx.font = '10px monospace';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'top';
                             ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                            ctx.fillText(coord, pxy.px, pxy.py - 26 + 1);
+                            ctx.fillText(coord, pxy.px, pxy.py + 15 + 1);
                             ctx.fillStyle = '#bbb';
-                            ctx.fillText(coord, pxy.px, pxy.py - 26);
+                            ctx.fillText(coord, pxy.px, pxy.py + 15);
                         }
                     }
                 }
@@ -3332,11 +3369,32 @@
                 if (!Number.isNaN(px) && !Number.isNaN(py)){
                     // Only show if within current axis range
                     if (px>=realRange.xMin && px<=realRange.xMax && py>=realRange.yMin && py<=realRange.yMax){
-                        drawRealPoint(ctx, canvas, {x:px, y:py}, '#2563eb', 'P', showLabels);
+                        const pxy = mapRealToCanvas(canvas, px, py);
+                        const color = '#2563eb';
+                        const size = 6;
+
+                        // Draw filled circle
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(pxy.px, pxy.py, size, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Draw stroke outline
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(pxy.px, pxy.py, size + 3, 0, 2 * Math.PI);
+                        ctx.stroke();
+
+                        // Draw label
+                        ctx.fillStyle = color;
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('P', pxy.px + size + 10, pxy.py);
                     }
                 }
             }
-            // no step label
         }
         function renderRealScalarAll(){ visualizeRealScalarStep(0); }
 

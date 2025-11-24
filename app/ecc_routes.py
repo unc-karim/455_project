@@ -184,13 +184,82 @@ def register_ecc_routes(app):
             result = curve.scalar_multiply(k, P)
 
             steps = []
-            current = (None, None)
-            for i in range(1, min(k + 1, 11)):
-                current = curve.add_points(current, P)
-                if current == (None, None):
-                    steps.append(f'{i}P = O')
-                else:
-                    steps.append(f'{i}P = ({current[0]}, {current[1]})')
+
+            # Enhanced explanation of the double-and-add algorithm
+            if k == 0:
+                steps.append("Computing 0·P = O (point at infinity)")
+                steps.append("Any point multiplied by 0 equals the point at infinity")
+            elif k < 0:
+                steps.append(f"Computing {k}·P (negative scalar)")
+                steps.append(f"This is equivalent to {-k}·(-P), where -P = (x, -{point_data['y']} mod {p})")
+                steps.append(f"Proceeding with {-k}·(-P)")
+            else:
+                # Show binary representation
+                binary_k = bin(k)[2:]  # Remove '0b' prefix
+                steps.append(f"Step 0: Decompose scalar using double-and-add algorithm")
+                steps.append(f"k = {k} (decimal) = {binary_k} (binary)")
+                steps.append(f"Algorithm processes bits from RIGHT to LEFT (least significant to most significant)")
+                steps.append("")
+
+                # Show the algorithm structure
+                steps.append(f"Initialize:")
+                steps.append(f"  • Result = O (point at infinity)")
+                steps.append(f"  • Addend = P = ({point_data['x']}, {point_data['y']})")
+                steps.append(f"  • k = {k}")
+                steps.append("")
+
+                # Simulate double-and-add to show steps
+                result_algo = (None, None)
+                addend = P if P != (None, None) else (None, None)
+                k_temp = k
+                bit_position = 0
+
+                steps.append("Executing double-and-add algorithm:")
+                while k_temp > 0:
+                    bit = k_temp & 1
+                    steps.append(f"  Bit {bit_position}: {bit}")
+
+                    if bit == 1:
+                        # Show addition step
+                        if result_algo == (None, None):
+                            steps.append(f"    → Result is O, adding {addend if addend != (None, None) else 'O'}")
+                            result_algo = addend
+                            if addend != (None, None):
+                                steps.append(f"    → Result = {addend}")
+                        else:
+                            sum_point = curve.add_points(result_algo, addend)
+                            steps.append(f"    → Adding Addend to Result")
+                            if result_algo != (None, None) and addend != (None, None):
+                                steps.append(f"    → Result = ({result_algo[0]}, {result_algo[1]}) + ({addend[0]}, {addend[1]})")
+                            if sum_point != (None, None):
+                                steps.append(f"    → Result = ({sum_point[0]}, {sum_point[1]})")
+                            else:
+                                steps.append(f"    → Result = O")
+                            result_algo = sum_point
+                    else:
+                        steps.append(f"    → Bit is 0, skip addition")
+
+                    # Double the addend
+                    if k_temp > 1:  # Only if there are more bits
+                        doubled = curve.add_points(addend, addend) if addend != (None, None) else (None, None)
+                        steps.append(f"    → Double Addend: 2·Addend")
+                        if addend != (None, None):
+                            if doubled != (None, None):
+                                steps.append(f"    → Addend = 2·({addend[0]}, {addend[1]}) = ({doubled[0]}, {doubled[1]})")
+                            else:
+                                steps.append(f"    → Addend = O")
+                        addend = doubled
+
+                    k_temp >>= 1
+                    bit_position += 1
+                    if k_temp > 0:
+                        steps.append("")
+
+                steps.append("")
+                steps.append(f"Why double-and-add is efficient:")
+                steps.append(f"  • Standard method: add P to itself k times = O(k) additions")
+                steps.append(f"  • Double-and-add: process k's bits = O(log k) operations")
+                steps.append(f"  • For k={k}, we used only {bit_position} bit positions instead of {k} additions")
 
             if result == (None, None):
                 result_formatted = {'x': None, 'y': None, 'display': 'O'}
@@ -377,22 +446,93 @@ def register_ecc_routes(app):
 
             steps = []
             pts = []
-            S = (None, None)
-            limit = min(abs(k), 10)
-            addend = (P[0], P[1]) if not (P[0] is None) else (None, None)
-            for i in range(1, limit + 1):
-                S = curve.add_points(S, addend)
-                if S == (None, None):
-                    steps.append(f'{i}P = O')
-                    pts.append({'x': None, 'y': None})
-                else:
-                    steps.append(f'{i}P = ({S[0]}, {S[1]})')
-                    pts.append({'x': S[0], 'y': S[1]})
+
+            # Enhanced explanation of the double-and-add algorithm for real numbers
+            if k == 0:
+                steps.append("Computing 0·P = O (point at infinity)")
+                steps.append("Any point multiplied by 0 equals the point at infinity")
+            elif k < 0:
+                steps.append(f"Computing {k}·P (negative scalar)")
+                steps.append(f"This is equivalent to {-k}·(-P), where -P = ({point_data.get('x', 'x')}, {-point_data.get('y', 'y')})")
+                steps.append(f"Proceeding with {-k}·(-P)")
+            else:
+                # Show binary representation
+                binary_k = bin(k)[2:]  # Remove '0b' prefix
+                px = point_data.get('x') if point_data.get('x') is not None else None
+                py = point_data.get('y') if point_data.get('y') is not None else None
+
+                steps.append(f"Given: P = ({px:.6g}, {py:.6g}), k = {k}")
+                steps.append(f"Curve: y² = x³ + {a}x + {b}")
+                steps.append(f"Method: Double-and-add algorithm")
+                steps.append(f"k = {k} (decimal) = {binary_k} (binary)")
+                steps.append("")
+                steps.append("Algorithm: Process each bit of k from right to left")
+                steps.append("• If bit = 1: Add current power of P to result")
+                steps.append("• If bit = 0: Skip addition")
+                steps.append("• After each bit: Double the current power of P")
+                steps.append("")
+
+                # Simulate double-and-add to show steps and collect intermediate results
+                result_algo = (None, None)
+                addend = P if P != (None, None) else (None, None)
+                k_temp = k
+                bit_position = 0
+                pts_collected = []
+
+                steps.append("Execution:")
+                while k_temp > 0:
+                    bit = k_temp & 1
+                    power = 2**bit_position
+
+                    steps.append(f"Bit {bit_position} (value = {bit}):")
+
+                    if bit == 1:
+                        # Show addition step
+                        if result_algo == (None, None):
+                            steps.append(f"  Bit is 1: Initialize Result = {power}P")
+                            steps.append(f"  {power}P = ({addend[0]:.6g}, {addend[1]:.6g})")
+                            result_algo = addend
+                            pts_collected.append({'x': addend[0], 'y': addend[1]})
+                        else:
+                            sum_point = curve.add_points(result_algo, addend)
+                            steps.append(f"  Bit is 1: Add {power}P to Result")
+                            steps.append(f"  Result = ({result_algo[0]:.6g}, {result_algo[1]:.6g}) + ({addend[0]:.6g}, {addend[1]:.6g})")
+                            if sum_point != (None, None):
+                                steps.append(f"  Result = ({sum_point[0]:.6g}, {sum_point[1]:.6g})")
+                                pts_collected.append({'x': sum_point[0], 'y': sum_point[1]})
+                            else:
+                                steps.append(f"  Result = O (point at infinity)")
+                            result_algo = sum_point
+                    else:
+                        steps.append(f"  Bit is 0: Skip {power}P (do not add)")
+
+                    # Double the addend for next bit
+                    if k_temp > 1:  # Only if there are more bits
+                        next_power = 2**(bit_position+1)
+                        doubled = curve.add_points(addend, addend) if addend != (None, None) else (None, None)
+                        steps.append(f"  Prepare next bit: Double {power}P to get {next_power}P")
+                        if doubled != (None, None):
+                            steps.append(f"  {next_power}P = 2·({addend[0]:.6g}, {addend[1]:.6g}) = ({doubled[0]:.6g}, {doubled[1]:.6g})")
+                        else:
+                            steps.append(f"  {next_power}P = O")
+                        addend = doubled
+
+                    k_temp >>= 1
+                    bit_position += 1
+                    steps.append("")
+
+                steps.append("Summary:")
+                steps.append(f"Total operations: {bit_position} (O(log k))")
+                steps.append(f"Naive method would use: {k} additions (O(k))")
+                steps.append(f"Efficiency gain: {k / bit_position:.1f}x faster")
+
+                # Collect points for visualization - use intermediate results
+                pts = pts_collected
 
             if result == (None, None):
                 result_formatted = {'x': None, 'y': None, 'display': 'O'}
             else:
-                result_formatted = {'x': result[0], 'y': result[1], 'display': f'({result[0]}, {result[1]})'}
+                result_formatted = {'x': result[0], 'y': result[1], 'display': f'({result[0]:.6g}, {result[1]:.6g})'}
 
             user = get_current_user()
             if user:
