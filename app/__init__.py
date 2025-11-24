@@ -24,7 +24,7 @@ __all__ = ["create_app", "app"]
 
 def create_app():
     """Create and configure the Flask application."""
-    load_dotenv(BASE_DIR / ".env")
+    load_dotenv()
     app = Flask(
         __name__,
         static_folder=str(BASE_DIR / "static"),
