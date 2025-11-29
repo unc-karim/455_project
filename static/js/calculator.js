@@ -457,10 +457,10 @@
             if (authBtn) {
                 authBtn.style.display = isLoggedIn ? 'none' : 'block';
             }
-            // Hide settings section when user logs out
+            // Update account settings section visibility
             const accountSection = document.getElementById('accountSettingsSection');
-            if (accountSection && !isLoggedIn) {
-                accountSection.style.display = 'none';
+            if (accountSection) {
+                accountSection.style.display = isLoggedIn ? 'block' : 'none';
             }
         }
 
@@ -2260,9 +2260,7 @@
             if (overlay) overlay.classList.remove('visible');
             if (profileBtn) profileBtn.style.display = 'inline-flex';
             if (profileName) profileName.textContent = isLoggedIn ? `${session.username || 'user'}${isGuest ? ' (guest)' : ''}` : 'guest';
-            const menuLogin = document.getElementById('menuLogin');
             const menuLogout = document.getElementById('menuLogout');
-            if (menuLogin) menuLogin.style.display = isGuest ? 'block' : 'none';
             if (menuLogout) menuLogout.style.display = (isLoggedIn && !isGuest) ? 'block' : 'none';
             // Update account settings visibility based on login status
             updateAccountSettingsVisibility(isLoggedIn && !isGuest);
@@ -3727,16 +3725,16 @@ function getOperationIcon(type){
         // Filter menu items based on search input
         function filterMenuItems() {
             const searchInput = document.getElementById('menuSearchInput');
+            if (!searchInput) return; // Guard clause for missing search input
+
             const searchValue = searchInput.value.toLowerCase().trim();
             const menuCards = document.querySelectorAll('.menu-card');
             const menuSections = document.querySelectorAll('.menu-section');
             const searchClear = document.getElementById('menuSearchClear');
 
             // Show/hide clear button
-            if (searchValue) {
-                searchClear.style.display = 'block';
-            } else {
-                searchClear.style.display = 'none';
+            if (searchClear) {
+                searchClear.style.display = searchValue ? 'block' : 'none';
             }
 
             // If search is empty, show everything
@@ -3808,8 +3806,14 @@ function getOperationIcon(type){
         // Clear menu search
         function clearMenuSearch() {
             const searchInput = document.getElementById('menuSearchInput');
+            const searchClear = document.getElementById('menuSearchClear');
+
+            if (!searchInput) return; // Guard clause for missing search input
+
             searchInput.value = '';
-            document.getElementById('menuSearchClear').style.display = 'none';
+            if (searchClear) {
+                searchClear.style.display = 'none';
+            }
             filterMenuItems();
             searchInput.focus();
         }
