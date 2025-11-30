@@ -184,6 +184,7 @@ def register_ecc_routes(app):
             result = curve.scalar_multiply(k, P)
 
             steps = []
+            pts = []
 
             # Enhanced explanation of the double-and-add algorithm
             if k == 0:
@@ -208,41 +209,53 @@ def register_ecc_routes(app):
                 steps.append(f"  • k = {k}")
                 steps.append("")
 
-                # Simulate double-and-add to show steps
+                # Simulate double-and-add to show steps and collect intermediate results
                 result_algo = (None, None)
                 addend = P if P != (None, None) else (None, None)
                 k_temp = k
                 bit_position = 0
+                pts_collected = []
 
                 steps.append("Executing double-and-add algorithm:")
                 while k_temp > 0:
                     bit = k_temp & 1
-                    steps.append(f"  Bit {bit_position}: {bit}")
+                    power = 2**bit_position
+                    steps.append(f"  Bit {bit_position} (value = {bit}):")
 
                     if bit == 1:
+                        # Collect the addend point being used
+                        if addend != (None, None):
+                            # Only add if not already in the list (avoid duplicates)
+                            if not any(p['x'] == addend[0] and p['y'] == addend[1] for p in pts_collected):
+                                pts_collected.append({'x': addend[0], 'y': addend[1]})
+
                         # Show addition step
                         if result_algo == (None, None):
-                            steps.append(f"    → Result is O, adding {addend if addend != (None, None) else 'O'}")
+                            steps.append(f"    → Result is O, initialize to {power}P")
                             result_algo = addend
                             if addend != (None, None):
-                                steps.append(f"    → Result = {addend}")
+                                steps.append(f"    → Result = ({addend[0]}, {addend[1]})")
                         else:
                             sum_point = curve.add_points(result_algo, addend)
-                            steps.append(f"    → Adding Addend to Result")
+                            steps.append(f"    → Adding {power}P to Result")
                             if result_algo != (None, None) and addend != (None, None):
                                 steps.append(f"    → Result = ({result_algo[0]}, {result_algo[1]}) + ({addend[0]}, {addend[1]})")
                             if sum_point != (None, None):
                                 steps.append(f"    → Result = ({sum_point[0]}, {sum_point[1]})")
+                                # Collect the result point (if not already collected as addend)
+                                if not any(p['x'] == sum_point[0] and p['y'] == sum_point[1] for p in pts_collected):
+                                    pts_collected.append({'x': sum_point[0], 'y': sum_point[1]})
                             else:
                                 steps.append(f"    → Result = O")
                             result_algo = sum_point
                     else:
-                        steps.append(f"    → Bit is 0, skip addition")
+                        steps.append(f"    → Bit is 0, skip {power}P (do not add)")
 
                     # Double the addend
                     if k_temp > 1:  # Only if there are more bits
+                        next_power = 2**(bit_position+1)
                         doubled = curve.add_points(addend, addend) if addend != (None, None) else (None, None)
-                        steps.append(f"    → Double Addend: 2·Addend")
+                        steps.append(f"    → Prepare next bit: Double {power}P to get {next_power}P")
                         if addend != (None, None):
                             if doubled != (None, None):
                                 steps.append(f"    → Addend = 2·({addend[0]}, {addend[1]}) = ({doubled[0]}, {doubled[1]})")
@@ -252,14 +265,15 @@ def register_ecc_routes(app):
 
                     k_temp >>= 1
                     bit_position += 1
-                    if k_temp > 0:
-                        steps.append("")
+                    steps.append("")
 
-                steps.append("")
-                steps.append(f"Why double-and-add is efficient:")
-                steps.append(f"  • Standard method: add P to itself k times = O(k) additions")
-                steps.append(f"  • Double-and-add: process k's bits = O(log k) operations")
-                steps.append(f"  • For k={k}, we used only {bit_position} bit positions instead of {k} additions")
+                steps.append("Summary:")
+                steps.append(f"Total bit positions: {bit_position} (O(log k))")
+                steps.append(f"Naive method would use: {k} additions (O(k))")
+                steps.append(f"Efficiency gain: {k / bit_position:.1f}x faster" if bit_position > 0 else "")
+
+                # Use collected intermediate points for visualization
+                pts = pts_collected
 
             if result == (None, None):
                 result_formatted = {'x': None, 'y': None, 'display': 'O'}
@@ -285,7 +299,8 @@ def register_ecc_routes(app):
             return jsonify({
                 'success': True,
                 'result': result_formatted,
-                'steps': steps
+                'steps': steps,
+                'points': pts
             })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
@@ -487,19 +502,26 @@ def register_ecc_routes(app):
                     steps.append(f"Bit {bit_position} (value = {bit}):")
 
                     if bit == 1:
+                        # Collect the addend point being used
+                        if addend != (None, None):
+                            # Only add if not already in the list (avoid duplicates)
+                            if not any(p['x'] == addend[0] and p['y'] == addend[1] for p in pts_collected):
+                                pts_collected.append({'x': addend[0], 'y': addend[1]})
+
                         # Show addition step
                         if result_algo == (None, None):
                             steps.append(f"  Bit is 1: Initialize Result = {power}P")
                             steps.append(f"  {power}P = ({addend[0]:.6g}, {addend[1]:.6g})")
                             result_algo = addend
-                            pts_collected.append({'x': addend[0], 'y': addend[1]})
                         else:
                             sum_point = curve.add_points(result_algo, addend)
                             steps.append(f"  Bit is 1: Add {power}P to Result")
                             steps.append(f"  Result = ({result_algo[0]:.6g}, {result_algo[1]:.6g}) + ({addend[0]:.6g}, {addend[1]:.6g})")
                             if sum_point != (None, None):
                                 steps.append(f"  Result = ({sum_point[0]:.6g}, {sum_point[1]:.6g})")
-                                pts_collected.append({'x': sum_point[0], 'y': sum_point[1]})
+                                # Collect the result point (if not already collected as addend)
+                                if not any(p['x'] == sum_point[0] and p['y'] == sum_point[1] for p in pts_collected):
+                                    pts_collected.append({'x': sum_point[0], 'y': sum_point[1]})
                             else:
                                 steps.append(f"  Result = O (point at infinity)")
                             result_algo = sum_point

@@ -1412,14 +1412,9 @@
                         </div>
                     `;
 
-                    // Parse intermediate multiples into points array and draw all
+                    // Use intermediate points directly from backend
                     scalarSteps = data.steps || [];
-                    fpScalarPoints = [];
-                    const re = /\((\d+)\s*,\s*(\d+)\)/;
-                    for (const s of scalarSteps) {
-                        const m = re.exec(s || '');
-                        if (m) fpScalarPoints.push({ x: parseInt(m[1]), y: parseInt(m[2]) });
-                    }
+                    fpScalarPoints = data.points || [];
                     // Animate plotting of 1P..kP
                     startFpMultiplicationAnimation();
                     const scalarVisible = document.getElementById('scalarToggleStepsBtn')?.getAttribute('data-visible') !== 'false';
@@ -1858,11 +1853,11 @@
 
             fpScalarPoints.forEach((pt, i) => {
                 if (pt && pt.x !== null) {
-                    // Always label points as 1P, 2P, ...
-                    const lbl = `${i+1}P`;
+                    // Label points as intermediate results from double-and-add
+                    const lbl = `R${i+1}`;
                     drawPoint(ctx, canvas, pt.x, pt.y, '#166534', 6, lbl);
 
-                     // If toggled, also show coordinates for these multiples only
+                     // If toggled, also show coordinates for these intermediate results
                      if (showCoords) {
                         const x = padding + (pt.x / maxVal) * width;
                         const y = cH - padding - (pt.y / maxVal) * height;
@@ -1956,7 +1951,7 @@
                 ctx.translate(x, y);
                 ctx.scale(scale, scale);
                 ctx.translate(-x, -y);
-                const lbl = `${i+1}P`;
+                const lbl = `R${i+1}`;
                 drawPoint(ctx, canvas, pt.x, pt.y, '#166534', 6, lbl);
                 ctx.restore();
                 ctx.globalAlpha = 1;
@@ -3338,8 +3333,8 @@
                         ctx.arc(pxy.px, pxy.py, size + 3, 0, 2 * Math.PI);
                         ctx.stroke();
 
-                        // Draw label - show the actual point computation (1P, 2P, 4P, etc.)
-                        let label = `${2**i}P`;
+                        // Draw label - show intermediate results from double-and-add
+                        let label = `R${i+1}`;
                         ctx.fillStyle = color;
                         ctx.font = '12px Arial';
                         ctx.textAlign = 'left';
