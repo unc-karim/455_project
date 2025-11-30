@@ -33,6 +33,9 @@ fi
 if [[ -n "${DB_PATH:-}" ]]; then
   EXTRA_ENV_ARGS+=(--set-env-vars "DB_PATH=${DB_PATH}")
 fi
+if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+  EXTRA_ENV_ARGS+=(--set-env-vars "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}")
+fi
 
 gcloud run deploy "${SERVICE_NAME}" \
   --image "${IMAGE}" \
