@@ -576,3 +576,129 @@ def register_ecc_routes(app):
             return jsonify({'success': True, 'result': result_formatted, 'steps': steps, 'points': pts})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
+
+    @app.route('/api/discrete_log_solve', methods=['POST'])
+    def api_discrete_log_solve():
+        """
+        Solve the discrete logarithm problem: find k such that k*G = Q
+        Uses brute force by default, or Baby-step Giant-step if use_bsgs is True
+        """
+        try:
+            data = request.get_json()
+            a = int(data['a'])
+            b = int(data['b'])
+            p = int(data['p'])
+            gx = int(data['gx'])
+            gy = int(data['gy'])
+            qx = int(data['qx'])
+            qy = int(data['qy'])
+            use_bsgs = data.get('use_bsgs', False)
+
+            curve = EllipticCurve(a, b, p)
+
+            # Get all non-infinity points on the curve
+            all_points = curve.find_all_points()
+            non_infinity_points = [pt for pt in all_points if pt != (None, None)]
+
+            G = (gx, gy)
+            Q = (qx, qy)
+
+            # Validate points are on curve
+            if not curve.is_point_on_curve(gx, gy):
+                return jsonify({'success': False, 'error': 'G is not on the curve'}), 400
+            if not curve.is_point_on_curve(qx, qy):
+                return jsonify({'success': False, 'error': 'Q is not on the curve'}), 400
+
+            found_key = None
+            attempts = []
+            max_attempts = len(non_infinity_points)
+
+            # Automatically use BSGS for larger problems
+            if max_attempts > 100:
+                use_bsgs = True
+
+            if use_bsgs and max_attempts > 10:
+                # Baby-step Giant-step algorithm
+                import math
+                m = math.ceil(math.sqrt(max_attempts))
+
+                # Baby step: compute k*G for k = 0, 1, ..., m-1
+                baby_steps = {}
+                temp_point = (None, None)  # Point at infinity
+                for k in range(m):
+                    if temp_point == (None, None):
+                        baby_steps[f"{None}_{None}"] = k
+                    else:
+                        key = f"{temp_point[0]}_{temp_point[1]}"
+                        baby_steps[key] = k
+                    temp_point = curve.add_points(temp_point, G) if temp_point != (None, None) else G
+
+                # Compute m*G (used for giant steps)
+                mG = temp_point
+                for _ in range(m - 1):
+                    mG = curve.add_points(mG, G)
+
+                # Negate m*G: compute -m*G
+                if mG != (None, None):
+                    neg_mG = (mG[0], (-mG[1]) % p)
+                else:
+                    neg_mG = (None, None)
+
+                # Giant step: compute Q - j*m*G for j = 0, 1, ..., m-1
+                gamma = Q
+                for j in range(m):
+                    gamma_key = f"{gamma[0]}_{gamma[1]}" if gamma != (None, None) else f"{None}_{None}"
+                    if gamma_key in baby_steps:
+                        k = (baby_steps[gamma_key] + j * m) % max_attempts
+                        if k > 0:  # k must be positive
+                            # Verify the result
+                            result = (None, None)
+                            for _ in range(k):
+                                result = curve.add_points(result, G) if result != (None, None) else G
+                            if result == Q:
+                                found_key = k
+                                break
+                    gamma = curve.add_points(gamma, neg_mG) if neg_mG != (None, None) else gamma
+
+            if not found_key:
+                # Brute force: try all values of k from 1 to max_attempts
+                result = (None, None)
+                for k in range(1, max_attempts + 1):
+                    result = curve.add_points(result, G) if result != (None, None) else G
+
+                    # Record all attempts for display
+                    attempts.append({
+                        'k_attempt': k,
+                        'result_x': result[0] if result != (None, None) else None,
+                        'result_y': result[1] if result != (None, None) else None,
+                        'found': result == Q
+                    })
+
+                    if result == Q:
+                        found_key = k
+                        break
+
+            user = get_current_user()
+            if user:
+                save_history(user['id'], 'Discrete Log Solve', f'Found k = {found_key if found_key else "not found"}')
+            ensure_session_id()
+            try:
+                save_operation_history(
+                    user_id=session.get('user_id'),
+                    operation_type='discrete_log',
+                    curve_type='Fp',
+                    parameters={'a': a, 'b': b, 'p': p, 'G': [gx, gy], 'Q': [qx, qy]},
+                    result={'found_key': found_key, 'attempts': len(attempts) if attempts else max_attempts},
+                    session_id=session.get('session_id'),
+                )
+            except Exception:
+                pass
+
+            return jsonify({
+                'success': True,
+                'found_key': found_key,
+                'total_attempts': max_attempts,
+                'attempts': attempts
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400

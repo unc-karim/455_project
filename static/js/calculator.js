@@ -4286,7 +4286,12 @@ function getOperationIcon(type){
                 const payload = { a, b, p };
                 if (customPrivateKey !== null) {
                     payload.private_key = customPrivateKey;
+                    console.log('INIT: Sending custom private_key:', customPrivateKey);
+                } else {
+                    console.log('INIT: No custom key provided - backend will generate random key');
                 }
+
+                console.log('INIT: Full payload:', payload);
 
                 const response = await fetch('/api/encryption/init', {
                     method: 'POST',
@@ -4478,6 +4483,11 @@ function getOperationIcon(type){
             if (!('x' in obj.R) || !('y' in obj.R)) return false;
             if (!Array.isArray(obj.encrypted)) return false;
             if (obj.encrypted.some(byte => typeof byte !== 'number')) return false;
+            // IMPORTANT: Require HMAC tag for authentication
+            if (!obj.hmac_tag || typeof obj.hmac_tag !== 'string') {
+                console.warn('WARNING: No HMAC tag found in ciphertext. Using old format without authentication.');
+                return true; // Accept old format but log warning
+            }
             return true;
         }
 
@@ -4487,6 +4497,7 @@ function getOperationIcon(type){
                 return;
             }
 
+            console.log('DEBUG: Starting decryption...');
             const ciphertextField = document.getElementById('ciphertextInput');
             const fileInput = document.getElementById('decryptionFileInput');
             const file = fileInput?.files?.[0];
@@ -4517,6 +4528,8 @@ function getOperationIcon(type){
             try {
                 // Try parsing as JSON
                 ciphertext = JSON.parse(ciphertextText);
+                console.log('DEBUG: Parsed ciphertext object:', ciphertext);
+                console.log('DEBUG: Has HMAC tag?', !!ciphertext.hmac_tag);
                 if (!isValidCiphertextObject(ciphertext)) {
                     throw new Error('Invalid JSON structure');
                 }
@@ -4525,6 +4538,8 @@ function getOperationIcon(type){
                 try {
                     const decodedText = atob(ciphertextText.trim());
                     ciphertext = JSON.parse(decodedText);
+                    console.log('DEBUG: Decoded base64 ciphertext object:', ciphertext);
+                    console.log('DEBUG: Has HMAC tag?', !!ciphertext.hmac_tag);
                     if (!isValidCiphertextObject(ciphertext)) {
                         showToast('Invalid ciphertext format', 'error');
                         return;
@@ -4539,14 +4554,24 @@ function getOperationIcon(type){
             showLoading('Decrypting message...');
 
             try {
+                // Always use session key for decryption (initialized key)
+                const currentPrivateKeyValue = null;
+                console.log('DECRYPTION: Using session key (private key set during initialization)');
+
                 const response = await fetch('/api/encryption/decrypt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ciphertext })
+                    body: JSON.stringify({
+                        ciphertext,
+                        current_private_key: currentPrivateKeyValue
+                    })
                 });
 
                 const data = await response.json();
                 hideLoading();
+
+                console.log('DEBUG: Backend response:', data);
+                console.log('DEBUG: HMAC verified?', data.hmac_verified);
 
                 if (data.success) {
                     // Display result
@@ -4580,6 +4605,48 @@ function getOperationIcon(type){
                     });
 
                     showToast('Message decrypted successfully!', 'success');
+                } else if (!data.hmac_verified) {
+                    // HMAC verification failed - DO NOT show plaintext at all
+                    const resultDiv = document.getElementById('decryptionResult');
+                    const errorHtml = `
+                        <div class="result-box error" style="border: 3px solid #ef4444;">
+                            <h3 style="color: #ef4444;">❌ DECRYPTION FAILED</h3>
+                            <p style="color: #ef4444; font-size: 1.1em; font-weight: bold;">Authentication Tag Verification FAILED!</p>
+                            <p style="color: #ef4444;"><strong>${data.error}</strong></p>
+                            <div style="padding: 15px; background: #1a1a1a; border-radius: 8px; margin: 15px 0; border: 2px dashed #ef4444;">
+                                <p style="font-size: 0.9em; color: #aaa;">⚠️ <strong>OUTPUT NOT DISPLAYED</strong> - The decryption failed cryptographic verification.</p>
+                                <p style="font-size: 0.85em; color: #888;">The HMAC authentication tag does not match. This indicates that either:</p>
+                                <ul style="color: #888; font-size: 0.85em;">
+                                    <li>The wrong private key was used to decrypt</li>
+                                    <li>The ciphertext has been corrupted or tampered with</li>
+                                </ul>
+                            </div>
+                            <p style="color: #ef4444; font-size: 0.9em; margin-top: 15px;"><strong>Action:</strong> Use the correct private key or verify the ciphertext is valid.</p>
+                        </div>
+                    `;
+                    resultDiv.innerHTML = errorHtml;
+
+                    // Display steps
+                    displayDecryptionSteps(data.steps);
+
+                    // Draw visualization
+                    drawDecryptionVisualization(ciphertext, data.shared_secret_point);
+
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
+
+                    addToLocalHistory('decrypt', {
+                        format_detected: 'JSON',
+                        plaintext_length: data.plaintext?.length || 0,
+                        hmac_verified: false
+                    }, {
+                        success: false,
+                        error: 'Wrong private key detected',
+                        plaintext: data.plaintext?.substring(0, 50) || null
+                    });
+
+                    showToast('❌ Wrong private key! Output is garbage data.', 'error');
                 } else {
                     showToast('Error: ' + data.error, 'error');
                 }
@@ -7224,3 +7291,314 @@ function getOperationIcon(type){
         } else {
             initChatAssistant();
         }
+
+        // =================== DISCRETE LOGARITHM DEMO =================== //
+
+        let dlogCurrentCurve = null;
+        let dlogPoints = [];
+        let dlogBasePoint = null;
+        let dlogPublicKey = null;
+        let dlogPrivateKey = null;
+
+        async function initDiscreteLogDemo() {
+        console.log('[Discrete Log] Step 1: Initializing curve');
+        const a = parseInt(document.getElementById('dlogParamA').value) || 5;
+        const b = parseInt(document.getElementById('dlogParamB').value) || 7;
+        const p = parseInt(document.getElementById('dlogParamP').value) || 47;
+
+        showLoading('Initializing curve...', 'Finding all points');
+
+        try {
+        const response = await fetch('/api/find_points', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ a, b, p })
+        });
+
+        const data = await response.json();
+        hideLoading();
+
+        if (!data.success) {
+            showToast(data.error || 'Failed to initialize curve', 'error');
+            return;
+        }
+
+        dlogCurrentCurve = { a, b, p };
+        dlogPoints = data.points;
+        dlogBasePoint = null;
+        dlogPublicKey = null;
+
+        // Display curve info
+        const infoDiv = document.getElementById('dlogCurveInfo');
+        const nonInfinityPoints = data.points.filter(p => p.x !== null);
+        infoDiv.innerHTML = `
+            <div class="result-box" style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6;">
+                <h4 style="color: #2563eb; margin-top: 0;">✓ Curve Initialized</h4>
+                <p><strong>Curve equation:</strong> y² ≡ x³ + ${a}x + ${b} (mod ${p})</p>
+                <p><strong>Points found:</strong> ${data.count} total (including point at infinity)</p>
+                <p><strong>Non-infinity points:</strong> ${nonInfinityPoints.length}</p>
+                <p style="color: #059669; font-weight: 600;">✓ Ready for Step 2: Choose a base point G and private key k</p>
+            </div>
+        `;
+
+        // Enable step 2 and select random base point
+        document.getElementById('dlogStep2Panel').style.opacity = '1';
+        document.getElementById('dlogComputeBtn').disabled = false;
+        document.getElementById('dlogKRange').textContent = `(1-${nonInfinityPoints.length})`;
+
+        // Auto-select a point with large order as the base point (generator)
+        // Skip the first few points (0-indexed) which may have small order
+        // Use point index 2 if available, otherwise use the last point
+        if (nonInfinityPoints.length > 2) {
+            dlogBasePoint = nonInfinityPoints[2];  // Use the 3rd point which has large order
+        } else if (nonInfinityPoints.length > 0) {
+            dlogBasePoint = nonInfinityPoints[nonInfinityPoints.length - 1];  // Use last point
+        }
+        document.getElementById('dlogScalar').max = nonInfinityPoints.length;
+
+        showToast('Curve initialized! Now choose your private key k.', 'success');
+        } catch (error) {
+        hideLoading();
+        console.error('[Discrete Log] Error in step 1:', error);
+        showToast('Error initializing curve: ' + error.message, 'error');
+        }
+        }
+
+        async function computeDiscreteLogPublicKey() {
+        console.log('[Discrete Log] Step 2: Computing public key', { dlogCurrentCurve, dlogBasePoint });
+        if (!dlogCurrentCurve || !dlogBasePoint) {
+        showToast('Please initialize the curve first', 'warning');
+        return;
+        }
+
+        const k = parseInt(document.getElementById('dlogScalar').value);
+        if (!k || k < 1) {
+        showToast('Enter a valid private key k (must be > 0)', 'error');
+        return;
+        }
+
+        const nonInfinityPoints = dlogPoints.filter(p => p.x !== null);
+        if (k > nonInfinityPoints.length) {
+        showToast(`k must be between 1 and ${nonInfinityPoints.length}`, 'error');
+        return;
+        }
+
+        showLoading('Computing Q = k × G...', 'Performing scalar multiplication');
+
+        try {
+        const response = await fetch('/api/scalar_multiply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                a: dlogCurrentCurve.a,
+                b: dlogCurrentCurve.b,
+                p: dlogCurrentCurve.p,
+                k: k,
+                point: {
+                    x: dlogBasePoint.x,
+                    y: dlogBasePoint.y,
+                    display: `(${dlogBasePoint.x}, ${dlogBasePoint.y})`
+                }
+            })
+        });
+
+        const data = await response.json();
+        hideLoading();
+
+        if (!data.success) {
+            showToast(data.error || 'Failed to compute public key', 'error');
+            return;
+        }
+
+        if (!data.result) {
+            showToast('Invalid response from server', 'error');
+            return;
+        }
+
+        dlogPrivateKey = k;
+        dlogPublicKey = {
+            x: data.result.x,
+            y: data.result.y,
+            display: data.result.display || `(${data.result.x}, ${data.result.y})`
+        };
+
+        const resultDiv = document.getElementById('dlogPublicKeyResult');
+        resultDiv.innerHTML = `
+            <div class="result-box" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981;">
+                <h4 style="color: #059669; margin-top: 0;">✓ Public Key Computed</h4>
+                <p><strong>Private key:</strong> k = ${k}</p>
+                <p><strong>Base point:</strong> G = (${dlogBasePoint.x}, ${dlogBasePoint.y})</p>
+                <p><strong>Public key:</strong> Q = ${k} × G = ${dlogPublicKey.display}</p>
+                <p style="color: #059669; font-weight: 600;">✓ Public key is ready. Now attacker knows G and Q, but not k!</p>
+            </div>
+        `;
+
+        // Enable step 3
+        document.getElementById('dlogStep3Panel').style.opacity = '1';
+        document.getElementById('dlogBruteforceBtn').disabled = false;
+
+        showToast('Public key computed! Now launch the brute-force attack.', 'success');
+        } catch (error) {
+        hideLoading();
+        console.error('[Discrete Log] Error in step 2:', error);
+        showToast('Error computing public key: ' + error.message, 'error');
+        }
+        }
+
+        async function bruteForceDiscreteLog() {
+        console.log('[Discrete Log] Step 3: Launching attack', { dlogCurrentCurve, dlogBasePoint, dlogPublicKey, dlogPrivateKey });
+        if (!dlogCurrentCurve || !dlogBasePoint || !dlogPublicKey) {
+        showToast('Please complete steps 1 and 2 first', 'warning');
+        return;
+        }
+
+        const useBsgs = document.getElementById('dlogUseBsgs').checked;
+        const resultDiv = document.getElementById('dlogBruteforceResult');
+        const stepsDiv = document.getElementById('dlogStepsContainer');
+
+        showLoading('Launching attack...', 'Computing attempts');
+
+        try {
+        resultDiv.innerHTML = '';
+        stepsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Searching for k...</div>';
+
+        const response = await fetch('/api/discrete_log_solve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                a: dlogCurrentCurve.a,
+                b: dlogCurrentCurve.b,
+                p: dlogCurrentCurve.p,
+                gx: dlogBasePoint.x,
+                gy: dlogBasePoint.y,
+                qx: dlogPublicKey.x,
+                qy: dlogPublicKey.y,
+                use_bsgs: useBsgs
+            })
+        });
+
+        const data = await response.json();
+        hideLoading();
+
+        if (!data.success) {
+            showToast(data.error || 'Attack failed', 'error');
+            resultDiv.innerHTML = `<div class="result-box error" style="color: #dc2626;">❌ Error: ${data.error}</div>`;
+            return;
+        }
+
+        const foundKey = data.found_key;
+        const attempts = data.attempts || [];
+        const isCorrect = foundKey === dlogPrivateKey;
+
+        // Display result
+        const resultHtml = `
+            <div class="result-box" style="background: ${isCorrect ? 'rgba(239, 68, 68, 0.1)' : 'rgba(156, 163, 175, 0.1)'}; border-left: 4px solid ${isCorrect ? '#ef4444' : '#9ca3af'};">
+                <h4 style="color: ${isCorrect ? '#dc2626' : '#4b5563'}; margin-top: 0;">
+                    ${isCorrect ? '⚠️ KEY CRACKED!' : '❌ Key Not Found'}
+                </h4>
+                <p><strong>Found k:</strong> ${foundKey || 'Not found'}</p>
+                <p><strong>Correct k:</strong> ${dlogPrivateKey}</p>
+                <p><strong>Attempts:</strong> ${data.total_attempts} computations</p>
+                ${useBsgs ? `<p><strong>Algorithm:</strong> Baby-step Giant-step (O(√n))</p>` : `<p><strong>Algorithm:</strong> Brute Force (O(n))</p>`}
+                <p style="margin-top: 12px; color: var(--text-secondary);">
+                    ${isCorrect
+                        ? '⚠️ This shows why ECC is secure: even small keys are infeasible to crack with brute force!'
+                        : '✓ This demonstrates the hardness of the discrete logarithm problem.'}
+                </p>
+            </div>
+        `;
+
+        resultDiv.innerHTML = resultHtml;
+
+        // Display all attack attempts with educational context
+        if (attempts.length > 0) {
+            const targetPoint = `(${dlogPublicKey.x}, ${dlogPublicKey.y})`;
+            const totalAttempts = data.total_attempts;
+            const efficiency = Math.round((attempts.length / totalAttempts) * 100);
+
+            let stepsHtml = `
+                <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
+                    <h4 style="margin: 0 0 10px 0; color: #2563eb;">🔍 Brute Force Attack - Finding the Secret Key</h4>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">
+                        <strong>Goal:</strong> Find which k satisfies: k × G = Q
+                    </p>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">
+                        <strong>Target Q:</strong> <span style="font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px;">${targetPoint}</span>
+                    </p>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">
+                        <strong>Found in:</strong> ${attempts.length} of ${totalAttempts} possible keys (${efficiency}% efficiency)
+                    </p>
+                </div>
+
+                <div style="background: rgba(251, 191, 36, 0.05); padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 3px solid #f59e0b;">
+                    <strong style="color: #d97706;">💡 Educational Note:</strong> Each attempt computes k × G and checks if it equals Q. The attacker must try many values before finding the secret key - this is why discrete log is computationally hard!
+                </div>
+
+                <div style="border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f9fafb; padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 0.9em; display: grid; grid-template-columns: 60px 80px 200px 80px; gap: 10px;">
+                        <div>#</div>
+                        <div>Try k</div>
+                        <div>Computed: k × G</div>
+                        <div>Result</div>
+                    </div>
+                    <div style="max-height: 450px; overflow-y: auto;">
+            `;
+
+            attempts.forEach((attempt, idx) => {
+                const isFound = attempt.found;
+                const isSecret = attempt.k_attempt === dlogPrivateKey;
+                const resultPoint = `(${attempt.result_x}, ${attempt.result_y})`;
+                const matches = isFound ? '✓ MATCH!' : '✗ No match';
+
+                let bgColor = 'transparent';
+                let borderColor = 'transparent';
+                let textColor = '#666';
+
+                if (isFound) {
+                    bgColor = 'rgba(239, 68, 68, 0.15)';
+                    borderColor = '#dc2626';
+                    textColor = '#dc2626';
+                } else if (isSecret) {
+                    bgColor = 'rgba(249, 115, 22, 0.15)';
+                    borderColor = '#ea580c';
+                    textColor = '#ea580c';
+                }
+
+                stepsHtml += `
+                    <div style="padding: 10px; background: ${bgColor}; border-left: 3px solid ${borderColor}; display: grid; grid-template-columns: 60px 80px 200px 80px; gap: 10px; align-items: center; font-size: 0.85em; font-family: monospace; border-bottom: 1px solid #e5e7eb;">
+                        <div style="font-weight: 600;">${idx + 1}</div>
+                        <div style="color: ${textColor}; font-weight: 600;">${attempt.k_attempt}</div>
+                        <div style="color: #666; word-break: break-all;">${resultPoint}</div>
+                        <div style="font-weight: 600; color: ${textColor};">
+                            ${isFound ? '✓ FOUND' : isSecret ? '⚡ Secret' : '✗'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            stepsHtml += `
+                    </div>
+                </div>
+
+                <div style="background: rgba(16, 185, 129, 0.05); padding: 12px; border-radius: 8px; margin-top: 12px; border-left: 3px solid #10b981;">
+                    <strong style="color: #059669;">✓ Key Insight:</strong> The attacker had to try ${attempts.length} different values before finding the secret key. In real cryptography with large numbers, this search is computationally infeasible!
+                </div>
+            `;
+
+            stepsDiv.innerHTML = stepsHtml;
+        } else {
+            stepsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">No attack attempts recorded.</div>';
+        }
+
+        showToast(isCorrect ? '❌ Private key cracked!' : '✓ Attack completed', isCorrect ? 'error' : 'info');
+        } catch (error) {
+        hideLoading();
+        console.error('[Discrete Log] Error in step 3:', error);
+        showToast('Error launching attack: ' + error.message, 'error');
+        }
+        }
+
+        // Expose functions globally for onclick handlers
+        window.initDiscreteLogDemo = initDiscreteLogDemo;
+        window.computeDiscreteLogPublicKey = computeDiscreteLogPublicKey;
+        window.bruteForceDiscreteLog = bruteForceDiscreteLog;
