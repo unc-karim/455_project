@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import re
 import smtplib
 import secrets
 from datetime import timedelta
@@ -17,6 +18,32 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 SMTP_FROM = os.getenv("SMTP_FROM") or SMTP_USER
 SMTP_USE_TLS = (os.getenv("SMTP_USE_TLS", "true").lower() == "true")
+
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """
+    Validate password strength requirements.
+    Returns: (is_valid, error_message)
+    """
+    if not password:
+        return False, "Password is required"
+
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters"
+
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number"
+
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>?/\\|`~]', password):
+        return False, "Password must contain at least one special character"
+
+    return True, ""
 
 
 def _send_reset_email(to_email: str, token: str):
@@ -66,6 +93,10 @@ def register_auth_routes(app):
             return jsonify({'success': False, 'message': 'Email, username, and password are required'}), 400
         if '@' not in email or '.' not in email or ' ' in email:
             return jsonify({'success': False, 'message': 'Enter a valid email address'}), 400
+
+        valid, error_msg = validate_password_strength(password)
+        if not valid:
+            return jsonify({'success': False, 'message': error_msg}), 400
 
         conn = get_db()
         try:
@@ -145,6 +176,10 @@ def register_auth_routes(app):
         new_pw = data.get('password') or ''
         if not token or not new_pw:
             return jsonify({'success': False, 'message': 'Token and new password are required'}), 400
+
+        valid, error_msg = validate_password_strength(new_pw)
+        if not valid:
+            return jsonify({'success': False, 'message': error_msg}), 400
 
         conn = get_db()
         try:
@@ -287,26 +322,22 @@ def register_auth_routes(app):
         data = request.get_json(silent=True) or {}
         current_password = data.get('current_password', '')
         new_password = data.get('new_password', '')
-        confirm_password = data.get('confirm_password', '')
 
-        if not current_password or not new_password or not confirm_password:
-            return jsonify({'success': False, 'message': 'All password fields are required'}), 400
+        if not current_password:
+            return jsonify({'success': False, 'message': 'Current password is required'}), 400
 
-        if len(new_password) < 8:
-            return jsonify({'success': False, 'message': 'New password must be at least 8 characters'}), 400
+        if not new_password:
+            return jsonify({'success': False, 'message': 'New password is required'}), 400
 
-        if new_password != confirm_password:
-            return jsonify({'success': False, 'message': 'Passwords do not match'}), 400
-
-        if current_password == new_password:
-            return jsonify({'success': False, 'message': 'New password must be different from current password'}), 400
+        valid, error_msg = validate_password_strength(new_password)
+        if not valid:
+            return jsonify({'success': False, 'message': error_msg}), 400
 
         conn = get_db()
         try:
             # Verify current password
-            cur = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user['id'],))
-            row = cur.fetchone()
-            if not row or not check_password_hash(row['password_hash'], current_password):
+            user_data = conn.execute("SELECT password_hash FROM users WHERE id = ?", (user['id'],)).fetchone()
+            if not user_data or not check_password_hash(user_data['password_hash'], current_password):
                 return jsonify({'success': False, 'message': 'Current password is incorrect'}), 401
 
             # Update password

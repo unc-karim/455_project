@@ -171,11 +171,6 @@
                         <span class="menu-card-label">Classify</span>
                         <span class="menu-card-hint">Analyze points</span>
                     </button>
-                    <button class="menu-card" onclick="demonstrateDiscreteLog()" title="Discrete logarithm problem" data-menu-text="discrete log problem attack brute force">
-                        <span class="menu-card-icon"><i class="fa-solid fa-calculator" aria-hidden="true"></i></span>
-                        <span class="menu-card-label">Discrete Log</span>
-                        <span class="menu-card-hint">Attack simulation</span>
-                    </button>
                     <button class="menu-card" onclick="showWhyItWorksModal()" title="Learn how ECC works" data-menu-text="why ecc elliptic curve security strength">
                         <span class="menu-card-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
                         <span class="menu-card-label">Why It Works</span>
@@ -440,12 +435,13 @@
                         <div class="account-form-group">
                             <label for="currentPassword">Current Password</label>
                             <input type="password" id="currentPassword" placeholder="Enter current password">
+                            <small class="form-hint">Required to verify your identity</small>
                         </div>
 
                         <div class="account-form-group">
                             <label for="newPassword">New Password</label>
-                            <input type="password" id="newPassword" placeholder="Enter new password">
-                            <small class="form-hint">Password must be at least 8 characters</small>
+                            <input type="password" id="newPassword" placeholder="Enter new password" oninput="updateChangePasswordStrength()">
+                            <div id="newPasswordStrength" style="font-size: 12px; margin-top: 8px;"></div>
                         </div>
 
                         <div class="account-form-group">

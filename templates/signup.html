@@ -39,16 +39,17 @@
             </div>
             
             <div class="field">
-                <input id="suPassword" type="password" placeholder="Password">
+                <input id="suPassword" type="password" placeholder="Password" oninput="updatePasswordStrength()">
                 <div id="suPasswordErr" class="err"></div>
+                <div id="suPasswordStrength"></div>
             </div>
             <div class="field">
                 <input id="suConfirm" type="password" placeholder="Confirm password">
                 <div id="suConfirmErr" class="err"></div>
             </div>
-            
 
-            <button class="btn-primary-dark" onclick="submitSignupCard()">Create account</button>
+
+            <button id="suBtn" class="btn-primary-dark" onclick="submitSignupCard()" disabled>Create account</button>
             <div class="sep"><div class="line"></div><div class="txt">Or</div><div class="line"></div></div>
             <div class="pills">
                 <button class="pill secondary" onclick="goLogin()">Back to login</button>
