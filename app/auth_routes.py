@@ -234,14 +234,47 @@ def register_auth_routes(app):
 
     @app.route('/api/logout', methods=['POST'])
     def logout():
+        user = get_current_user()
+
+        # Delete guest data on logout
+        if user and user.get('is_guest'):
+            conn = get_db()
+            try:
+                user_id = user['id']
+                # Delete from both history tables
+                conn.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM operation_history WHERE user_id = ?", (user_id,))
+                # Delete the guest user record
+                conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                conn.commit()
+            finally:
+                conn.close()
+
         session.pop('user_id', None)
         session.pop('username', None)
         session.pop('is_guest', None)
+        session.pop('session_id', None)
         return jsonify({'success': True})
 
     @app.route('/api/guest', methods=['POST'])
     @app.route('/api/auth/guest', methods=['POST'])
     def guest():
+        user = get_current_user()
+
+        # Clean up previous guest session if switching guests
+        if user and user.get('is_guest'):
+            conn = get_db()
+            try:
+                user_id = user['id']
+                # Delete from both history tables
+                conn.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
+                conn.execute("DELETE FROM operation_history WHERE user_id = ?", (user_id,))
+                # Delete the guest user record
+                conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                conn.commit()
+            finally:
+                conn.close()
+
         suffix = secrets.token_hex(3)
         username = f"guest_{suffix}"
         conn = get_db()
@@ -256,6 +289,7 @@ def register_auth_routes(app):
             session['user_id'] = row['id']
             session['username'] = username
             session['is_guest'] = 1
+            session.pop('session_id', None)  # Clear previous session_id for new guest
         finally:
             conn.close()
         return jsonify({'success': True, 'message': 'Continuing as guest', 'username': username})
